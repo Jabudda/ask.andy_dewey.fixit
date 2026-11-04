@@ -390,9 +390,33 @@ pub fn render_resume(p: &ProfileBundle, c: &ResumeContent) -> Vec<Block> {
     }
     if !p.certifications.is_empty() {
         b.push(Block::Heading("Certifications".into()));
+        // Several certificates from one issuer read better as one line than as a long list.
+        let mut issuers: Vec<String> = vec![];
         for cert in &p.certifications {
-            let detail = [cert.issuer.as_str(), cert.date_earned.as_str()].iter().filter(|x| !x.is_empty()).cloned().collect::<Vec<_>>().join(", ");
-            b.push(Block::Bullet(if detail.is_empty() { cert.name.clone() } else { format!("{} — {}", cert.name, detail) }));
+            if !issuers.contains(&cert.issuer) {
+                issuers.push(cert.issuer.clone());
+            }
+        }
+        for issuer in issuers {
+            let group: Vec<&Certification> = p.certifications.iter().filter(|c| c.issuer == issuer).collect();
+            if group.len() >= 3 && !issuer.is_empty() {
+                let mut years: Vec<&str> = group.iter().filter_map(|c| c.date_earned.get(..4)).collect();
+                years.sort();
+                years.dedup();
+                let when = match (years.first(), years.last()) {
+                    (Some(a), Some(z)) if a != z => format!(" ({a}–{z})"),
+                    (Some(a), _) => format!(" ({a})"),
+                    _ => String::new(),
+                };
+                let names = group.iter().map(|c| c.name.trim_end_matches(" - Self-Paced").trim_end_matches(" - Self Paced").to_string()).collect::<Vec<_>>().join("; ");
+                b.push(Block::Bullet(format!("{issuer}{when}: {names}")));
+            } else {
+                for cert in group {
+                    let date = if cert.date_earned.is_empty() { String::new() } else { month_name(&cert.date_earned) };
+                    let detail = [cert.issuer.as_str(), date.as_str()].iter().filter(|x| !x.is_empty()).cloned().collect::<Vec<_>>().join(", ");
+                    b.push(Block::Bullet(if detail.is_empty() { cert.name.clone() } else { format!("{} — {}", cert.name, detail) }));
+                }
+            }
         }
     }
     b
@@ -575,7 +599,13 @@ pub(crate) mod tests {
         assert!(text.contains("Smartsheet  •  Excel"), "verified names with their own casing; unverified dropped");
         assert!(!text.contains("Made Up"));
         assert!(text.contains("Bachelor's degree, Public Relations; minor in Marketing — State University"));
-        assert!(text.contains("• Smartsheet Builder — Smartsheet University, 2025-04"));
+        assert!(text.contains("• Smartsheet Builder — Smartsheet University, Apr 2025"), "{text}");
+        let mut many = p.clone();
+        many.certifications = (0..4)
+            .map(|i| Certification { name: format!("Course {i} - Self-Paced"), issuer: "Smartsheet University".into(), date_earned: format!("202{}-04", 4 + i % 2), ..Default::default() })
+            .collect();
+        let t2 = plain_text(&render_resume(&many, &r));
+        assert!(t2.contains("• Smartsheet University (2024–2025): Course 0; Course 1; Course 2; Course 3"), "{t2}");
 
         let cl = CoverLetterContent { greeting: String::new(), paragraphs: vec![Line { text: "One two three.".into(), sources: vec!["S1".into()] }], closing: String::new(), notes_for_candidate: String::new() };
         let t = plain_text(&render_cover_letter(&p, &job(), &cl, "November 4, 2026"));
