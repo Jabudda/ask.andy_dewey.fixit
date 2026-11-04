@@ -181,7 +181,8 @@ pub fn system_prompt(kind: &str, style_notes: &str) -> String {
          7. Write in plain, specific language. No exclamation marks.\n\
          8. Never use em dashes (—). Use commas, colons, semicolons, parentheses or separate sentences instead.\n\
          9. When you name a skill or tool, include in `sources` the matching \"Verified skill\" fact (K…) as well as the bullet that shows it.\n\
-         10. Keep quantities and actions exactly as the facts state them: one workflow stays one workflow (never \"workflows\"), and a thing the candidate designed or built is described as designed or built (do not turn it into an ongoing \"automate\" or \"deliver\").\n",
+         10. Keep quantities and actions exactly as the facts state them: one workflow stays one workflow (never \"workflows\"), and a thing the candidate designed or built is described as designed or built (do not turn it into an ongoing \"automate\" or \"deliver\").\n\
+         11. If a <candidate_context> block is present, it is the candidate's own background on this application (for example, that they already work for this employer). Trust it when framing the document and your notes, and do not contradict it. It is not a citable fact: never quote it in the document, and never include pay figures.\n",
         BANNED_PHRASES.join("; ")
     );
     if kind == "resume" {
@@ -212,6 +213,30 @@ pub fn system_prompt(kind: &str, style_notes: &str) -> String {
 pub fn user_prompt(job: &Job, facts: &[Fact], positions: &[PositionRef]) -> String {
     let b = job.score_breakdown.clone().unwrap_or_default();
     let list = |v: &[String]| if v.is_empty() { "none".to_string() } else { v.iter().take(12).map(|x| format!("- {x}")).collect::<Vec<_>>().join("\n") };
+    format!(
+        "{}{}",
+        candidate_context(job),
+        job_and_facts(job, facts, positions, &b, &list)
+    )
+}
+
+/// The candidate's own notes on this application, if any (see system rule 11).
+pub fn candidate_context(job: &Job) -> String {
+    let mut lines = vec![];
+    if job.draft.internal_candidate {
+        lines.push(format!(
+            "The candidate is an internal candidate: they already work at {}. Do not describe this role as a promotion or a step up unless the candidate says so below.",
+            job.draft.employer
+        ));
+    }
+    let own = job.draft.candidate_context.trim();
+    if !own.is_empty() {
+        lines.push(format!("In the candidate's words: {own}"));
+    }
+    if lines.is_empty() { String::new() } else { format!("<candidate_context>\n{}\n</candidate_context>\n\n", lines.join("\n")) }
+}
+
+fn job_and_facts(job: &Job, facts: &[Fact], positions: &[PositionRef], b: &ScoreBreakdown, list: &dyn Fn(&[String]) -> String) -> String {
     format!(
         "<job_posting>\nTitle: {}\nEmployer: {}\nLocation: {}\n\n{}\n</job_posting>\n\n\
          <fit_analysis>\nMet:\n{}\nPartially met:\n{}\nGaps (do not claim these):\n{}\n</fit_analysis>\n\n\
@@ -586,6 +611,19 @@ pub(crate) mod tests {
             accomplishments: vec![Accomplishment { title: "Call center template".into(), description: "Created a Microsoft Word call center template with escalation triggers and call flows".into(), ..Default::default() }],
             documents: vec![],
         }
+    }
+
+    #[test]
+    fn candidate_context_only_when_given() {
+        let mut j = job();
+        let facts = facts(&profile());
+        assert!(!user_prompt(&j, &facts, &[]).contains("<candidate_context>"));
+        j.draft.internal_candidate = true;
+        j.draft.candidate_context = "Lateral move; same pay band.".into();
+        let u = user_prompt(&j, &facts, &[]);
+        assert!(u.starts_with("<candidate_context>"));
+        assert!(u.contains("internal candidate") && u.contains("Lateral move; same pay band."));
+        assert!(system_prompt("resume", "").contains("11. If a <candidate_context>"));
     }
 
     pub fn job() -> Job {

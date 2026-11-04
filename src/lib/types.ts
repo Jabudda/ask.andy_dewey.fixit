@@ -38,6 +38,10 @@ export interface JobDraft {
   source: string;
   extractionMethod: string;
   detectionNotes: string[];
+  /** You already work for this employer (no title-based seniority penalty; Claude is told). */
+  internalCandidate: boolean;
+  /** Your own notes on this application; sent to Claude when AI writing is on, never quoted. */
+  candidateContext: string;
 }
 
 export interface Job extends JobDraft {

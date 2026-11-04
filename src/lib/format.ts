@@ -142,13 +142,14 @@ export function emptyDraft(): JobDraft {
   return {
     title: "", employer: "", locationText: "", remoteType: "unknown", wisconsinEligibility: "unknown",
     salaryMin: null, salaryMax: null, salaryPeriod: null, employmentType: "", postedDate: null, validThrough: null,
-    applyUrl: null, postingUrl: null, description: "", source: "manual", extractionMethod: "manual", detectionNotes: [],
+    applyUrl: null, postingUrl: null, description: "", source: "manual", extractionMethod: "manual", detectionNotes: [], internalCandidate: false, candidateContext: "",
   };
 }
 
 export function draftOf(j: Job): JobDraft {
   const { title, employer, locationText, remoteType, wisconsinEligibility, salaryMin, salaryMax, salaryPeriod,
-    employmentType, postedDate, validThrough, applyUrl, postingUrl, description, source, extractionMethod, detectionNotes } = j;
+    employmentType, postedDate, validThrough, applyUrl, postingUrl, description, source, extractionMethod, detectionNotes, internalCandidate, candidateContext } = j;
   return { title, employer, locationText, remoteType, wisconsinEligibility, salaryMin, salaryMax, salaryPeriod,
-    employmentType, postedDate, validThrough, applyUrl, postingUrl, description, source, extractionMethod, detectionNotes };
+    employmentType, postedDate, validThrough, applyUrl, postingUrl, description, source, extractionMethod, detectionNotes,
+    internalCandidate: internalCandidate ?? false, candidateContext: candidateContext ?? "" };
 }

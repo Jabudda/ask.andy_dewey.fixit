@@ -550,14 +550,13 @@ pub fn score(d: &JobDraft, salary_flag: &str, excluded: &[String], f: &ProfileFa
     // Seniority (inferred)
     let jl = title_level(&d.title);
     let gap = (jl - f.level - 0.5).max(0.0);
-    crit.push(CriterionScore {
-        key: "seniority".into(),
-        label: "Seniority & scope".into(),
-        weight: w.seniority,
-        score: (1.0 - gap / 2.5).clamp(0.0, 1.0),
-        detail: format!("Posting reads as level {jl:.1}; your recent roles read as level {:.1} (inferred from titles)", f.level),
-    });
-    if jl - f.level >= 1.5 {
+    let (sen_score, sen_detail) = if d.internal_candidate {
+        (1.0, format!("Internal candidate: you already work at {} and know the role's real scope (title level not used)", d.employer))
+    } else {
+        ((1.0 - gap / 2.5).clamp(0.0, 1.0), format!("Posting reads as level {jl:.1}; your recent roles read as level {:.1} (inferred from titles)", f.level))
+    };
+    crit.push(CriterionScore { key: "seniority".into(), label: "Seniority & scope".into(), weight: w.seniority, score: sen_score, detail: sen_detail });
+    if !d.internal_candidate && jl - f.level >= 1.5 {
         out.partial.push(format!("Seniority: “{}” is a step above your recent titles — emphasise scope and leadership you have actually held", d.title));
     }
     out.assumptions.push("Seniority is inferred from job titles, not responsibilities.".into());
@@ -686,6 +685,21 @@ mod tests {
             wisconsin_eligibility: "eligible".into(),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn internal_candidate_skips_title_seniority_penalty() {
+        let f = facts();
+        let mut d = job("Manager of Intake", "Qualifications\n• Minimum of 2 years of experience in managing or training staff");
+        let outside = score(&d, "meets", &[], &f, &Preferences::default());
+        assert!(outside.partial.iter().any(|x| x.starts_with("Seniority")), "{:?}", outside.partial);
+        d.internal_candidate = true;
+        let inside = score(&d, "meets", &[], &f, &Preferences::default());
+        assert!(!inside.partial.iter().any(|x| x.starts_with("Seniority")), "{:?}", inside.partial);
+        let sen = inside.criteria.iter().find(|c| c.key == "seniority").unwrap();
+        assert_eq!(sen.score, 1.0);
+        assert!(sen.detail.starts_with("Internal candidate"));
+        assert!(inside.total >= outside.total);
     }
 
     #[test]

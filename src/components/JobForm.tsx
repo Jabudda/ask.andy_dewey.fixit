@@ -64,6 +64,13 @@ export function JobForm({ draft, onChange }: { draft: JobDraft; onChange: (d: Jo
       <Field label="Application URL" wide>
         <input value={draft.applyUrl ?? ""} placeholder="https://" onChange={(e) => set("applyUrl", opt(e.target.value))} />
       </Field>
+      <Field label="Your situation" wide hint="Sent to Claude when AI writing is on, to frame the documents. Never quoted, and pay figures are never used.">
+        <label className="check">
+          <input type="checkbox" checked={draft.internalCandidate} onChange={(e) => set("internalCandidate", e.target.checked)} />{" "}
+          I already work for this employer (internal candidate)
+        </label>
+        <textarea rows={2} value={draft.candidateContext} placeholder="Optional, e.g. this is a lateral move within my department" onChange={(e) => set("candidateContext", e.target.value)} />
+      </Field>
       <Field label="Full job description" wide>
         <textarea rows={12} value={draft.description} onChange={(e) => set("description", e.target.value)} />
       </Field>

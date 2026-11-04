@@ -14,6 +14,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/001_init.sql"),
     include_str!("../migrations/002_discovery_scoring.sql"),
     include_str!("../migrations/003_documents_ai.sql"),
+    include_str!("../migrations/004_internal_candidate.sql"),
 ];
 pub const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;
 
@@ -161,6 +162,8 @@ fn job_from_row(r: &Row) -> rusqlite::Result<Job> {
             source: r.get("source")?,
             extraction_method: r.get("extraction_method")?,
             detection_notes: json_vec(r.get("detection_notes")?),
+            internal_candidate: r.get::<_, i64>("internal_candidate")? != 0,
+            candidate_context: r.get("candidate_context")?,
         },
         salary_flag: r.get("salary_flag")?,
         review_flags: json_vec(r.get("review_flags")?),
@@ -249,13 +252,14 @@ pub fn insert_job(c: &Connection, draft: &JobDraft, force: bool, is_sample: bool
         "INSERT INTO jobs (fingerprint, canonical_url, source, extraction_method, detection_notes, title, employer,
             location_text, remote_type, wisconsin_eligibility, salary_min, salary_max, salary_period, salary_flag,
             employment_type, posted_date, valid_through, apply_url, posting_url, description, review_flags,
-            excluded_reasons, status, is_sample, discovered_at, updated_at)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,'Discovered',?23,?24,?24)",
+            excluded_reasons, status, is_sample, discovered_at, updated_at, internal_candidate, candidate_context)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,'Discovered',?23,?24,?24,?25,?26)",
         params![
             fp, canonical_for(&d), d.source, d.extraction_method, to_json(&d.detection_notes), d.title, d.employer,
             d.location_text, d.remote_type, d.wisconsin_eligibility, d.salary_min, d.salary_max, d.salary_period,
             ev.salary_flag, d.employment_type, d.posted_date, d.valid_through, d.apply_url, d.posting_url,
-            d.description, to_json(&ev.review_flags), to_json(&ev.excluded_reasons), is_sample as i64, ts
+            d.description, to_json(&ev.review_flags), to_json(&ev.excluded_reasons), is_sample as i64, ts,
+            d.internal_candidate as i64, d.candidate_context.trim()
         ],
     )?;
     let id = tx.last_insert_rowid();
@@ -283,12 +287,14 @@ pub fn update_job(c: &Connection, id: i64, draft: &JobDraft) -> AppResult<Job> {
         "UPDATE jobs SET fingerprint=?1, canonical_url=?2, title=?3, employer=?4, location_text=?5, remote_type=?6,
             wisconsin_eligibility=?7, salary_min=?8, salary_max=?9, salary_period=?10, salary_flag=?11,
             employment_type=?12, posted_date=?13, valid_through=?14, apply_url=?15, posting_url=?16, description=?17,
-            review_flags=?18, excluded_reasons=?19, updated_at=?20, detection_notes=?22 WHERE id=?21",
+            review_flags=?18, excluded_reasons=?19, updated_at=?20, detection_notes=?22,
+            internal_candidate=?23, candidate_context=?24 WHERE id=?21",
         params![
             parse::fingerprint(&d.employer, &d.title), canonical_for(&d), d.title, d.employer, d.location_text,
             d.remote_type, d.wisconsin_eligibility, d.salary_min, d.salary_max, d.salary_period, ev.salary_flag,
             d.employment_type, d.posted_date, d.valid_through, d.apply_url, d.posting_url, d.description,
-            to_json(&ev.review_flags), to_json(&ev.excluded_reasons), now(), id, to_json(&d.detection_notes)
+            to_json(&ev.review_flags), to_json(&ev.excluded_reasons), now(), id, to_json(&d.detection_notes),
+            d.internal_candidate as i64, d.candidate_context.trim()
         ],
     )?;
     if n == 0 {

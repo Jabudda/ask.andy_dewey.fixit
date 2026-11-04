@@ -41,6 +41,10 @@ pub struct JobDraft {
     pub extraction_method: String,
     /// Where each auto-detected value came from, so the user can verify it.
     pub detection_notes: Vec<String>,
+    /// The candidate already works for this employer (affects seniority scoring and the writing prompt).
+    pub internal_candidate: bool,
+    /// The candidate's own notes about this application (e.g. "lateral move"); sent to Claude, never cited as a fact.
+    pub candidate_context: String,
 }
 
 impl Default for JobDraft {
@@ -63,6 +67,8 @@ impl Default for JobDraft {
             source: "manual".into(),
             extraction_method: "manual".into(),
             detection_notes: vec![],
+            internal_candidate: false,
+            candidate_context: String::new(),
         }
     }
 }
