@@ -294,18 +294,18 @@ pub fn ai_usage_summary(state: S) -> AppResult<crate::ai::UsageSummary> {
     crate::ai::usage_summary(&*state.conn()?)
 }
 #[tauri::command]
-pub fn prepare_generation(state: S, job_id: i64, kind: String) -> AppResult<crate::generate::Prepared> {
-    crate::generate::prepare(&*state.conn()?, job_id, &kind)
+pub fn prepare_generation(state: S, job_id: i64, kind: String, learn_from_previous: bool) -> AppResult<crate::generate::Prepared> {
+    crate::generate::prepare(&*state.conn()?, job_id, &kind, learn_from_previous)
 }
 #[tauri::command]
-pub async fn generate_document(state: State<'_, AppState>, job_id: i64, kind: String) -> AppResult<crate::generate::Generated> {
+pub async fn generate_document(state: State<'_, AppState>, job_id: i64, kind: String, learn_from_previous: bool) -> AppResult<crate::generate::Generated> {
     let (prep, body) = {
         let c = state.conn()?;
         let s = crate::ai::get_settings(&c)?;
         if !s.enabled || s.acknowledged_at.is_none() {
             return Err(AppError::invalid("Turn on AI writing in Preferences first"));
         }
-        let p = crate::generate::prepare(&c, job_id, &kind)?;
+        let p = crate::generate::prepare(&c, job_id, &kind, learn_from_previous)?;
         let b = crate::generate::request_body(&p);
         (p, b)
     };

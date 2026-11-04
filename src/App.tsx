@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { inTauri } from "./lib/api";
 import { ToastProvider } from "./components/ui";
 import { Dashboard } from "./pages/Dashboard";
@@ -33,6 +34,36 @@ const NAV: [Route["page"], string, string][] = [
   ["prefs", "Preferences", "⚙"],
   ["data", "Data & logs", "⛁"],
 ];
+
+export const ZOOM_STEPS = [1, 1.1, 1.25, 1.4, 1.5, 1.75];
+const DEFAULT_ZOOM = 1.25;
+
+function readZoom(): number {
+  try {
+    const v = Number(localStorage.getItem("ui_zoom"));
+    return ZOOM_STEPS.includes(v) ? v : DEFAULT_ZOOM;
+  } catch {
+    return DEFAULT_ZOOM;
+  }
+}
+
+/** Larger text for easier reading: zooms the whole window (text, charts, spacing) together. */
+function TextSize() {
+  const [z, setZ] = useState(readZoom);
+  useEffect(() => {
+    try { localStorage.setItem("ui_zoom", String(z)); } catch { /* storage unavailable */ }
+    if (inTauri) getCurrentWebview().setZoom(z).catch(() => {});
+  }, [z]);
+  const i = ZOOM_STEPS.indexOf(z);
+  return (
+    <div className="text-size" role="group" aria-label="Text size">
+      <span>Text size</span>
+      <button className="btn small" aria-label="Smaller text" disabled={i <= 0} onClick={() => setZ(ZOOM_STEPS[i - 1])}>A−</button>
+      <span className="text-size-value">{Math.round(z * 100)}%</span>
+      <button className="btn small" aria-label="Larger text" disabled={i >= ZOOM_STEPS.length - 1} onClick={() => setZ(ZOOM_STEPS[i + 1])}>A+</button>
+    </div>
+  );
+}
 
 /** Toast when a scheduled background search finishes. */
 function SearchListener() {
@@ -69,7 +100,8 @@ export function App() {
               <span className="nav-icon" aria-hidden>{icon}</span>{label}
             </button>
           ))}
-          <div className="sidebar-foot">Local-only · Phase 2</div>
+          <TextSize />
+          <div className="sidebar-foot">Local-only · Phase 3</div>
         </nav>
         <main className="main" key={key}>
           {!inTauri && (

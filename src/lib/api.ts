@@ -65,8 +65,10 @@ export const api = {
   getAiSettings: () => call<AiSettings>("get_ai_settings"),
   saveAiSettings: (settings: AiSettings) => call<void>("save_ai_settings", { settings }),
   aiUsageSummary: () => call<AiUsageSummary>("ai_usage_summary"),
-  prepareGeneration: (jobId: number, kind: "resume" | "cover_letter") => call<PreparedGeneration>("prepare_generation", { jobId, kind }),
-  generateDocument: (jobId: number, kind: "resume" | "cover_letter") => call<Generated>("generate_document", { jobId, kind }),
+  prepareGeneration: (jobId: number, kind: "resume" | "cover_letter", learnFromPrevious = false) =>
+    call<PreparedGeneration>("prepare_generation", { jobId, kind, learnFromPrevious }),
+  generateDocument: (jobId: number, kind: "resume" | "cover_letter", learnFromPrevious = false) =>
+    call<Generated>("generate_document", { jobId, kind, learnFromPrevious }),
   saveDocumentEdit: (id: number, content: unknown) => call<Generated>("save_document_edit", { id, content }),
   approveDocument: (id: number, reviewed: boolean) => call<import("./types").DocumentRec>("approve_document", { id, reviewed }),
   openDocumentPdf: (id: number) => call<void>("open_document_pdf", { id }),

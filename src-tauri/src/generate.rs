@@ -29,9 +29,68 @@ pub struct Prepared {
     pub user: String,
     pub fact_count: usize,
     pub estimated_usd: f64,
+    /// Earlier unsuccessful applications to this employer that could be used as a lesson.
+    pub previous_available: Vec<String>,
+    pub includes_previous: bool,
 }
 
-pub fn prepare(c: &Connection, job_id: i64, kind: &str) -> AppResult<Prepared> {
+static RE_CONTACT: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(r"(?i)[\w.+-]+@[\w-]+\.[\w.]+|\+?1?[\s.(-]*\d{3}[\s.)-]*\d{3}[\s.-]*\d{4}|linkedin\.com/\S*|https?://\S+").unwrap()
+});
+
+/// Removes email addresses, phone numbers and links before text leaves the Mac.
+pub fn strip_contact(s: &str) -> String {
+    RE_CONTACT.replace_all(s, "[removed]").to_string()
+}
+
+/// Replaces the candidate's own name with a placeholder.
+pub fn redact_name(s: &str, name: &str) -> String {
+    let n = name.trim();
+    if n.len() < 3 {
+        return s.to_string();
+    }
+    regex::Regex::new(&format!(r"(?i){}", n.split_whitespace().map(regex::escape).collect::<Vec<_>>().join(r"\s+")))
+        .map(|r| r.replace_all(s, "[candidate]").to_string())
+        .unwrap_or_else(|_| s.to_string())
+}
+
+fn employer_key(e: &str) -> Option<String> {
+    const STOP: [&str; 12] = ["the", "inc", "llc", "ltd", "corp", "company", "group", "health", "resources", "university", "of", "and"];
+    e.to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .find(|w| w.len() >= 3 && !STOP.contains(w))
+        .map(String::from)
+}
+
+/// Resume / cover-letter text from earlier applications to the same employer that did not succeed.
+pub fn previous_applications(c: &Connection, job: &Job) -> AppResult<Vec<(String, String)>> {
+    let Some(key) = employer_key(&job.draft.employer) else { return Ok(vec![]) };
+    let mut out: Vec<(String, String)> = vec![];
+    for other in db::list_jobs(c)? {
+        if other.id == job.id || !["Rejected", "Closed", "Withdrawn"].contains(&other.status.as_str()) || employer_key(&other.draft.employer).as_deref() != Some(key.as_str()) {
+            continue;
+        }
+        let docs = db::list_documents(c, Some(other.id))?;
+        for kinds in [["sent_resume", "generated_resume"], ["sent_cover_letter", "generated_cover_letter"]] {
+            let mut cands: Vec<&DocumentRec> = docs
+                .iter()
+                .filter(|d| kinds.contains(&d.kind.as_str()) && d.extracted_text.trim().len() > 200)
+                .filter(|d| !d.kind.starts_with("generated_") || d.status == "approved")
+                .collect();
+            cands.sort_by_key(|d| std::cmp::Reverse(d.created_at.clone()));
+            if let Some(d) = cands.first() {
+                let what = if kinds[0] == "sent_resume" { "resume" } else { "cover letter" };
+                let label = format!("{} at {} ({}) — {what}", other.draft.title, other.draft.employer, other.status);
+                if !out.iter().any(|(_, t)| t == &d.extracted_text) {
+                    out.push((label, d.extracted_text.clone()));
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+pub fn prepare(c: &Connection, job_id: i64, kind: &str, learn_from_previous: bool) -> AppResult<Prepared> {
     if !KINDS.contains(&kind) {
         return Err(AppError::invalid("Choose a resume or a cover letter"));
     }
@@ -46,7 +105,23 @@ pub fn prepare(c: &Connection, job_id: i64, kind: &str) -> AppResult<Prepared> {
     }
     let facts = tailoring::facts(&p);
     let system = tailoring::system_prompt(kind, &s.style_notes);
-    let user = tailoring::user_prompt(&job, &facts, &tailoring::positions(&p));
+    let mut user = tailoring::user_prompt(&job, &facts, &tailoring::positions(&p));
+    let previous = previous_applications(c, &job)?;
+    let includes_previous = learn_from_previous && !previous.is_empty();
+    if includes_previous {
+        for (label, text) in &previous {
+            user.push_str(&format!(
+                "\n\n<previous_application note=\"{label}\">\n{}\n</previous_application>",
+                redact_name(&strip_contact(&text.chars().take(15_000).collect::<String>()), &p.basics.full_name)
+            ));
+        }
+        user.push_str(
+            "\n\nThe candidate applied to this employer before with the documents above and was not selected. \
+             Treat them ONLY as a lesson, never as a source: do not cite them, do not reuse their wording, and avoid their likely \
+             weaknesses (for example generic phrasing, weak alignment to the posting, the most relevant experience buried, excess length). \
+             All facts must still come from candidate_facts. In notes_for_candidate, say briefly what you did differently and why.",
+        );
+    }
     let expected_out = if kind == "resume" { 7000 } else { 5000 };
     Ok(Prepared {
         kind: kind.into(),
@@ -57,6 +132,8 @@ pub fn prepare(c: &Connection, job_id: i64, kind: &str) -> AppResult<Prepared> {
         system,
         user,
         fact_count: facts.len(),
+        previous_available: previous.into_iter().map(|(l, _)| l).collect(),
+        includes_previous,
     })
 }
 
@@ -225,12 +302,12 @@ mod tests {
         let c = db::open_in_memory().unwrap();
         let j = crate::tailoring::tests::job();
         let id = db::insert_job(&c, &j.draft, false, false).unwrap().id.unwrap();
-        assert!(prepare(&c, id, "resume").is_err(), "no work history yet");
+        assert!(prepare(&c, id, "resume", false).is_err(), "no work history yet");
         let (c, id, _d) = setup();
-        let p = prepare(&c, id, "resume").unwrap();
+        let p = prepare(&c, id, "resume", false).unwrap();
         assert!(!p.user.contains("jordan@example.com"));
         assert!(p.estimated_usd > 0.0);
-        assert!(prepare(&c, id, "poem").is_err());
+        assert!(prepare(&c, id, "poem", false).is_err());
         let body = request_body(&p);
         assert_eq!(body["output_config"]["format"]["type"], "json_schema");
     }
@@ -238,7 +315,7 @@ mod tests {
     #[test]
     fn full_resume_flow_with_claim_check_and_approval() {
         let (c, id, dir) = setup();
-        let prep = prepare(&c, id, "resume").unwrap();
+        let prep = prepare(&c, id, "resume", false).unwrap();
         let invented = json!({"headline": "Operations and Smartsheet specialist", "summary": {"text": "Operations specialist with 6+ years in crisis management operations.", "sources": ["S1"]},
             "skills": ["Excel", "Smartsheet"], "notes_for_candidate": "Emphasised Excel.",
             "positions": [{"position_id": "P0", "include": true, "bullets": [
@@ -271,7 +348,7 @@ mod tests {
     #[test]
     fn refusals_are_recorded_and_nothing_is_saved() {
         let (c, id, dir) = setup();
-        let prep = prepare(&c, id, "cover_letter").unwrap();
+        let prep = prepare(&c, id, "cover_letter", false).unwrap();
         let r = json!({"model": "claude-opus-5-5", "stop_reason": "refusal", "stop_details": {"category": "general_harms"}, "content": [], "usage": {"input_tokens": 100, "output_tokens": 0}});
         assert!(finish(&c, dir.path(), &prep, &r).is_err());
         assert!(latest(&c, id, "cover_letter").unwrap().is_none());
@@ -280,9 +357,35 @@ mod tests {
     }
 
     #[test]
+    fn learns_from_rejected_application_without_leaking_contact_details() {
+        let (c, id, _dir) = setup();
+        // An earlier, rejected application to the same employer (different legal-name variant)
+        let mut old = crate::tailoring::tests::job().draft;
+        old.title = "IT Project Manager".into();
+        old.employer = "HSAG Inc".into();
+        let old_id = db::insert_job(&c, &old, false, false).unwrap().id.unwrap();
+        db::change_status(&c, &StatusChange { job_id: old_id, to_status: "Rejected".into(), note: String::new(), confirmation_ref: None, user_confirmed_submission: false }).unwrap();
+        let body = "Jordan Sample | jordan@example.com | 414.555.0100 | linkedin.com/in/jordan\nOperations professional with broad experience in many areas of the business and a strong record.";
+        db::insert_document(&c, "sent_resume", "old.pdf", "/x/old.pdf", "h1", &body.repeat(3), Some(old_id)).unwrap();
+        db::insert_document(&c, "sent_cover_letter", "a.pdf", "/x/a.pdf", "h2", &"Dear team, I am writing to apply. ".repeat(10), Some(old_id)).unwrap();
+        db::insert_document(&c, "sent_cover_letter", "b.pdf", "/x/b.pdf", "h3", &"Dear team, I am writing to apply. ".repeat(10), Some(old_id)).unwrap();
+
+        let without = prepare(&c, id, "resume", false).unwrap();
+        assert_eq!(without.previous_available.len(), 2, "resume + one cover letter (identical copies collapse)");
+        assert!(!without.includes_previous && !without.user.contains("previous_application"));
+        let with = prepare(&c, id, "resume", true).unwrap();
+        assert!(with.includes_previous);
+        assert!(with.user.contains("<previous_application note=\"IT Project Manager at HSAG Inc (Rejected) — resume\">"));
+        assert!(with.user.contains("never as a source"));
+        assert!(!with.user.contains("Jordan Sample") && with.user.contains("[candidate]"));
+        assert!(!with.user.contains("jordan@example.com") && !with.user.contains("414.555.0100") && !with.user.contains("linkedin.com/in/jordan"));
+        assert_eq!(strip_contact("call +1 (414) 555-0100 or a.b@c.org"), "call [removed] or [removed]");
+    }
+
+    #[test]
     fn cover_letter_flow() {
         let (c, id, dir) = setup();
-        let prep = prepare(&c, id, "cover_letter").unwrap();
+        let prep = prepare(&c, id, "cover_letter", false).unwrap();
         let letter = json!({"greeting": "Dear Hiring Team,", "closing": "Sincerely,", "notes_for_candidate": "",
             "paragraphs": [{"text": "HSAG's Analytics Coordinator III role fits the dashboard work I do every day.", "sources": ["E0.1"]},
                            {"text": "I built Smartsheet dashboards and testing trackers.", "sources": ["E0.1"]}]});

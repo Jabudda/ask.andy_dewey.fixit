@@ -66,13 +66,13 @@ function KindSection({ kind, jobId, aiOn, profile, master, versions, onChanged }
   const latest = versions[0];
   const blockers = latest?.claimReport.filter((f) => f.severity === "blocker").length ?? 0;
 
-  const start = async () => {
-    try { setPrep(await api.prepareGeneration(jobId, kind)); } catch (e) { fail(e); }
+  const start = async (learn = false) => {
+    try { setPrep(await api.prepareGeneration(jobId, kind, learn)); } catch (e) { fail(e); }
   };
   const generate = async () => {
     setBusy(true);
     try {
-      const g = await api.generateDocument(jobId, kind);
+      const g = await api.generateDocument(jobId, kind, prep?.includesPrevious ?? false);
       setPrep(null);
       setNotes(g.notesForCandidate);
       notify("ok", `${LABEL[kind]} v${g.document.version} written · ≈ $${g.costUsd.toFixed(2)}${g.servedByFallback ? " (served by fallback model)" : ""}`);
@@ -104,13 +104,20 @@ function KindSection({ kind, jobId, aiOn, profile, master, versions, onChanged }
             {kind === "resume" && <button className="link" onClick={() => setMode(mode === "compare" ? "none" : "compare")}>Compare</button>}
             {latest.status !== "approved" && <button className="btn small primary" disabled={blockers > 0} onClick={approve}>Approve</button>}
           </>}
-          <button className="btn small" disabled={!aiOn || busy} onClick={start}>{latest ? "Regenerate" : "Generate"}</button>
+          <button className="btn small" disabled={!aiOn || busy} onClick={() => start(false)}>{latest ? "Regenerate" : "Generate"}</button>
         </div>
       </div>
 
       {prep && (
         <div className="editor small">
           <div><strong>Ready to write with {prep.model}</strong> (effort {prep.effort}) · {prep.factCount} verified facts · estimated ≈ ${prep.estimatedUsd.toFixed(2)}</div>
+          {prep.previousAvailable.length > 0 && (
+            <label className="check">
+              <input type="checkbox" checked={prep.includesPrevious} onChange={(e) => start(e.target.checked)} />
+              Learn from my earlier unsuccessful application to this employer: {prep.previousAvailable.join("; ")}.
+              Used only as a lesson (never as facts); your name and contact details are removed.
+            </label>
+          )}
           <details><summary>See exactly what will be sent</summary>
             <pre className="description mono">{prep.system}{"\n\n────────\n\n"}{prep.user}</pre></details>
           <div className="btn-row">
@@ -120,7 +127,9 @@ function KindSection({ kind, jobId, aiOn, profile, master, versions, onChanged }
         </div>
       )}
 
-      {notes && <p className="small muted"><strong>Writer's notes:</strong> {notes}</p>}
+      {(notes || latest?.contentJson?.notes_for_candidate) && (
+        <p className="small notes-box"><strong>Writer's notes (v{latest?.version}):</strong> {notes || latest?.contentJson?.notes_for_candidate}</p>
+      )}
       {latest && <FindingList findings={latest.claimReport} />}
       {latest && mode === "edit" && profile && <Editor kind={kind} doc={latest} profile={profile} onSaved={() => { setMode("none"); onChanged(); }} />}
       {latest && mode === "compare" && <Compare master={master} tailored={latest.extractedText} />}

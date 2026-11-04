@@ -44,7 +44,8 @@ export function AiSettingsCard() {
       <div className="alert alert-info small">
         <strong>What is sent to Anthropic, and only when you click Generate:</strong> the job posting, the fit analysis, and the verified facts from your
         Career profile (work history, skills, certifications, education, summary), plus the voice notes below.
-        <strong> Never sent:</strong> your email, phone, address, notes, other jobs, application history or documents.
+        <strong> Never sent:</strong> your email, phone, address, notes, other jobs or documents. The one exception is opt-in, per document: you can
+        include an earlier <em>unsuccessful</em> application to the same employer as a lesson, with your name, contact details and links removed.
         Every generation shows its estimated cost first. You can review exactly what will be sent before confirming. Typical cost with Opus 5.5 is
         $0.10–$0.30 per document, billed to your own Anthropic account. Anthropic's API terms apply to what you send.
       </div>
