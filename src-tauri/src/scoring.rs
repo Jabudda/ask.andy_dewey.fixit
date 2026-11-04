@@ -26,6 +26,8 @@ pub struct ProfileFacts {
     pub skill_count: usize,
     pub position_count: usize,
     pub has_resume: bool,
+    pub positions: Vec<Experience>,
+    pub today: NaiveDate,
 }
 
 fn parse_ym(s: &str) -> Option<(i32, u32)> {
@@ -139,6 +141,8 @@ pub fn profile_facts(p: &ProfileBundle, master_resume_text: &str, today: NaiveDa
         skill_count: p.skills.len(),
         position_count: p.experience.len(),
         has_resume: !master_resume_text.trim().is_empty(),
+        positions: p.experience.clone(),
+        today,
     }
 }
 
@@ -162,6 +166,7 @@ const ALIASES: &[(&str, &[&str])] = &[
     ("project coordination", &["project coordinator", "coordinated"]),
     ("workflow automation", &["automated", "automation", "power automate", "office scripts"]),
     ("troubleshooting", &["troubleshoot", "troubleshot"]),
+    ("microsoft office", &["excel", "microsoft 365", "office 365", "word", "outlook", "powerpoint", "sharepoint", "microsoft teams"]),
 ];
 
 fn term_re(term: &str) -> Regex {
@@ -213,6 +218,12 @@ static RE_OTHER_HEAD: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)^\W*(responsibilities|what you(?:'|’)?ll do|what you will do|the role|about (?:the|us|our)|benefits|perks|compensation|salary|pay|why join|our team|the team|who we are|location|equal opportunity|eeo|how to apply|day to day|duties|in this role)").unwrap()
 });
 static RE_YEARS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)(\d{1,2})\s*\+?\s*(?:-\s*\d{1,2}\s*)?(?:years?|yrs?)").unwrap());
+static RE_PEOPLE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b(?:manag\w*|supervis\w*|lead\w*|train\w*|coach\w*|mentor\w*)\b[^.;]{0,25}\b(?:staff|teams?|people|employees|agents|direct reports|others)\b|\bpeople management\b|\bdirect reports\b").unwrap()
+});
+static RE_PEOPLE_TITLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\b(?:manager|supervisor|lead|director|head|owner)\b").unwrap());
+static RE_PEOPLE_WORK: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\b(?:managed a team|team of \d+|supervised|coaching|coached|led training|training initiatives|trained)\b").unwrap());
 static RE_DEGREE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)bachelor|\bb\.?a\.?\b|\bb\.?s\.?\b|master'?s|\bmba\b|ph\.?d|associate'?s degree|\bdegree\b").unwrap());
 static RE_EQUIV: LazyLock<Regex> =
@@ -313,6 +324,36 @@ fn judge(line: &str, f: &ProfileFacts, required: bool, extra: &[String]) -> Verd
     if let Some(c) = RE_YEARS.captures(line) {
         let need: f64 = c[1].parse().unwrap_or(0.0);
         if need > 0.0 && need < 40.0 {
+            // Count only the roles that involve what the requirement names, when it names something.
+            let topics = terms_in(line, extra);
+            let people = RE_PEOPLE.is_match(line);
+            if !topics.is_empty() || people {
+                let rel: Vec<Experience> = f
+                    .positions
+                    .iter()
+                    .filter(|e| {
+                        let t = format!("{} {}", e.title, e.achievements).to_lowercase();
+                        topics.iter().any(|x| has_evidence(&t, x)) || (people && (RE_PEOPLE_TITLE.is_match(&e.title) || RE_PEOPLE_WORK.is_match(&e.achievements)))
+                    })
+                    .cloned()
+                    .collect();
+                let mut what = topics.join(", ");
+                if people {
+                    what = if what.is_empty() { "managing, leading or training people".into() } else { format!("{what} or leading people") };
+                }
+                if rel.is_empty() {
+                    return Verdict::Gap(format!("{l} — none of your listed roles mention {what}"), false);
+                }
+                let ry = experience_years(&rel, f.today);
+                let names = rel.iter().map(|e| e.title.as_str()).take(3).collect::<Vec<_>>().join(", ");
+                return if ry + 0.01 >= need {
+                    Verdict::Met(format!("{l} — about {ry:.1} years in roles that mention {what} ({names})"))
+                } else if ry + 1.0 >= need {
+                    Verdict::Partial(format!("{l} — about {ry:.1} years in roles that mention {what} ({names})"))
+                } else {
+                    Verdict::Gap(format!("{l} — about {ry:.1} years in roles that mention {what} ({names})"), required && need - ry > 2.0)
+                };
+            }
             return if f.years + 0.01 >= need {
                 Verdict::Met(format!("{l} — you have {:.0}+ years across your listed positions", f.years.floor()))
             } else if f.years + 2.0 >= need {
@@ -756,6 +797,20 @@ mod tests {
         let req = b.criteria.iter().find(|c| c.key == "required").unwrap();
         assert!(req.score < 0.6, "one checkable requirement out of five: {}", req.score);
         assert!(b.total < 75, "{}", b.total);
+    }
+
+    #[test]
+    fn years_count_only_relevant_roles() {
+        let f = facts();
+        // Smartsheet appears only in the 2020-08 → present role (~6.3 years)
+        assert!(matches!(judge("Minimum of 5 years of Smartsheet experience", &f, true, &[]), Verdict::Met(s) if s.contains("about 6.") && s.contains("Business Operations Specialist")));
+        assert!(matches!(judge("8+ years of Smartsheet administration", &f, true, &[]), Verdict::Gap(_, _)));
+        assert!(matches!(judge("5 years of Salesforce experience", &f, true, &[]), Verdict::Gap(s, false) if s.contains("none of your listed roles")));
+        // No field named → all positions count
+        assert!(matches!(judge("10+ years of professional experience", &f, true, &[]), Verdict::Met(s) if s.contains("across your listed positions")));
+        // People leadership looks at titles and work
+        assert!(matches!(judge("Minimum of 2 years of experience managing or training staff", &f, true, &[]), Verdict::Gap(s, false) if s.contains("leading people")));
+        assert!(has_evidence("advanced excel and sharepoint", "Microsoft Office"));
     }
 
     #[test]

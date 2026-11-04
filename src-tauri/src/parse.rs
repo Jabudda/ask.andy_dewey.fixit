@@ -546,27 +546,55 @@ pub fn draft_from_jsonld(v: &Value, page_url: &str) -> JobDraft {
 }
 
 /// Fallback when a page has no structured data: page title + visible text, flagged for review.
+static RE_COMPANY: LazyLock<Regex> =
+    LazyLock::new(|| re(r"(?i)\b(?:inc|llc|ltd|corp|corporation|co|company|group|plc|lp|careers|jobs|recruiting)\.?$"));
+
+/// "Acme Inc - Data Analyst" / "Data Analyst | Acme" → (title, employer, confident?)
+pub fn split_page_title(raw: &str) -> (String, String, bool) {
+    let clean = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+    let parts: Vec<&str> = clean.split(" - ").flat_map(|p| p.split(" | ")).flat_map(|p| p.split(" — ")).map(str::trim).filter(|p| !p.is_empty()).collect();
+    match parts.len() {
+        0 => (String::new(), String::new(), false),
+        1 => (parts[0].to_string(), String::new(), false),
+        _ => {
+            let parts: Vec<&str> = parts.into_iter().filter(|p| !p.eq_ignore_ascii_case("careers") && !p.eq_ignore_ascii_case("jobs")).collect();
+            if let Some(i) = parts.iter().position(|p| RE_COMPANY.is_match(p)) {
+                let title = parts.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, p)| *p).collect::<Vec<_>>().join(" - ");
+                (title, parts[i].trim_end_matches(" Careers").to_string(), true)
+            } else {
+                (parts[0].to_string(), parts.last().map(|s| s.to_string()).unwrap_or_default(), false)
+            }
+        }
+    }
+}
+
 pub fn draft_from_html_fallback(html: &str, page_url: &str) -> JobDraft {
-    let title = RE_TITLE_TAG
+    let page_title = RE_TITLE_TAG
         .captures(html)
         .map(|c| html_to_text(&c[1]))
         .unwrap_or_default();
+    let (title, employer, confident) = split_page_title(&page_title);
     let body = html_to_text(html);
     let mut d = JobDraft {
         source: "manual_url".into(),
         extraction_method: "heuristic".into(),
         title,
+        employer: employer.clone(),
         description: body.chars().take(20_000).collect(),
         posting_url: Some(page_url.to_string()),
         apply_url: Some(page_url.to_string()),
         ..Default::default()
     };
     d.detection_notes.push(
-        "No structured job data on this page. Title is the page title and the description is raw page text — \
+        "No structured job data on this page. Title and employer come from the page title and the description is raw page text — \
          many career sites load postings with JavaScript, so paste the description instead if it looks incomplete."
             .into(),
     );
-    d.detection_notes.push("Employer not detected — enter it before saving".into());
+    if employer.is_empty() {
+        d.detection_notes.push("Employer not detected — enter it before saving".into());
+    } else if !confident {
+        d.detection_notes.push(format!("Title “{}” and employer “{employer}” were guessed from the page title “{page_title}” — verify", d.title));
+    }
     enrich(&mut d);
     d
 }
@@ -714,9 +742,19 @@ mod tests {
     }
 
     #[test]
+    fn page_titles_are_split() {
+        assert_eq!(split_page_title("AllOne Health Resources Inc - Manager of Intake"), ("Manager of Intake".into(), "AllOne Health Resources Inc".into(), true));
+        assert_eq!(split_page_title("Data Analyst | Fabrikam Careers"), ("Data Analyst".into(), "Fabrikam".into(), true));
+        assert_eq!(split_page_title("Support Analyst | Litware"), ("Support Analyst".into(), "Litware".into(), false));
+        assert_eq!(split_page_title("Operations Coordinator"), ("Operations Coordinator".into(), String::new(), false));
+    }
+
+    #[test]
     fn html_fallback_is_flagged() {
         let d = draft_from_html_fallback("<html><title>Support Analyst | Litware</title><body><p>Remote role</p></body></html>", "https://x.example/j");
-        assert_eq!(d.title, "Support Analyst | Litware");
+        assert_eq!(d.title, "Support Analyst");
+        assert_eq!(d.employer, "Litware");
+        assert!(d.detection_notes.iter().any(|n| n.contains("were guessed")));
         assert_eq!(d.extraction_method, "heuristic");
         assert!(d.detection_notes.iter().any(|n| n.contains("No structured job data")));
     }

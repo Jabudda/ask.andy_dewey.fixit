@@ -105,6 +105,17 @@ pub fn evaluate(d: &JobDraft, p: &Preferences, today: NaiveDate) -> Evaluation {
         review.push(format!("Posting may be expired (valid through {})", d.valid_through.as_deref().unwrap_or("")));
     }
 
+    // Travel (a remote role can still require it)
+    let travel_re = regex::Regex::new(r"(?i)travel[^.\n]{0,40}?(\d{1,3})\s*%|(\d{1,3})\s*%[^.\n]{0,25}travel").unwrap();
+    let travel_any = regex::Regex::new(r"(?i)\btravel (?:is )?required\b|\bwilling(?:ness)? to travel\b|\bovernight travel\b").unwrap();
+    let text = format!("{}\n{}", d.title, d.description);
+    if let Some(c) = travel_re.captures(&text) {
+        let pct = c.get(1).or(c.get(2)).map(|m| m.as_str()).unwrap_or("?");
+        review.push(format!("Requires travel (up to {pct}%) — confirm it fits a fully remote arrangement"));
+    } else if travel_any.is_match(&text) {
+        review.push("Mentions required travel — confirm it fits a fully remote arrangement".into());
+    }
+
     // Employment type
     if !d.employment_type.is_empty() && !p.employment_types.is_empty() {
         let wanted: Vec<String> = p.employment_types.iter().map(|t| t.to_lowercase()).collect();
@@ -205,6 +216,16 @@ mod tests {
         let e = evaluate(&d, &Preferences::default(), today());
         assert!(e.excluded_reasons.is_empty());
         assert_eq!(e.review_flags.len(), 4, "{:?}", e.review_flags);
+    }
+
+    #[test]
+    fn travel_is_flagged() {
+        let mut d = draft();
+        d.description = "Ability to travel up to 20% of the time.".into();
+        let e = evaluate(&d, &Preferences::default(), today());
+        assert!(e.review_flags.iter().any(|f| f.contains("up to 20%")), "{:?}", e.review_flags);
+        d.description = "Willingness to travel for client meetings".into();
+        assert!(evaluate(&d, &Preferences::default(), today()).review_flags.iter().any(|f| f.contains("travel")));
     }
 
     #[test]
