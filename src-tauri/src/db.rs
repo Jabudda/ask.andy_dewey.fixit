@@ -10,7 +10,10 @@ use rusqlite::{params, Connection, OptionalExtension, Row};
 use std::collections::BTreeMap;
 use std::path::Path;
 
-const MIGRATIONS: &[&str] = &[include_str!("../migrations/001_init.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("../migrations/001_init.sql"),
+    include_str!("../migrations/002_discovery_scoring.sql"),
+];
 pub const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;
 
 pub fn now() -> String {
@@ -163,6 +166,7 @@ fn job_from_row(r: &Row) -> rusqlite::Result<Job> {
         excluded_reasons: json_vec(r.get("excluded_reasons")?),
         status: r.get("status")?,
         score: r.get("score")?,
+        score_breakdown: r.get::<_, Option<String>>("score_breakdown")?.and_then(|s| serde_json::from_str(&s).ok()),
         assessment: r.get("assessment")?,
         notes: r.get("notes")?,
         submitted_at: r.get("submitted_at")?,
@@ -259,6 +263,7 @@ pub fn insert_job(c: &Connection, draft: &JobDraft, force: bool, is_sample: bool
         params![id, format!("Added via {}", d.source), ts],
     )?;
     tx.commit()?;
+    score_jobs(c, Some(id))?;
     log(c, "info", "import", &format!("Saved job #{id}: {} — {}", d.employer, d.title));
     Ok(SaveJobResult { id: Some(id), duplicate_of: None })
 }
@@ -277,18 +282,52 @@ pub fn update_job(c: &Connection, id: i64, draft: &JobDraft) -> AppResult<Job> {
         "UPDATE jobs SET fingerprint=?1, canonical_url=?2, title=?3, employer=?4, location_text=?5, remote_type=?6,
             wisconsin_eligibility=?7, salary_min=?8, salary_max=?9, salary_period=?10, salary_flag=?11,
             employment_type=?12, posted_date=?13, valid_through=?14, apply_url=?15, posting_url=?16, description=?17,
-            review_flags=?18, excluded_reasons=?19, updated_at=?20 WHERE id=?21",
+            review_flags=?18, excluded_reasons=?19, updated_at=?20, detection_notes=?22 WHERE id=?21",
         params![
             parse::fingerprint(&d.employer, &d.title), canonical_for(&d), d.title, d.employer, d.location_text,
             d.remote_type, d.wisconsin_eligibility, d.salary_min, d.salary_max, d.salary_period, ev.salary_flag,
             d.employment_type, d.posted_date, d.valid_through, d.apply_url, d.posting_url, d.description,
-            to_json(&ev.review_flags), to_json(&ev.excluded_reasons), now(), id
+            to_json(&ev.review_flags), to_json(&ev.excluded_reasons), now(), id, to_json(&d.detection_notes)
         ],
     )?;
     if n == 0 {
         return Err(AppError::invalid(format!("Job #{id} not found")));
     }
+    score_jobs(c, Some(id))?;
     get_job(c, id)
+}
+
+/// Text of the newest master resume (verified source for scoring).
+pub fn master_resume_text(c: &Connection) -> AppResult<String> {
+    Ok(c
+        .query_row(
+            "SELECT extracted_text FROM documents WHERE kind = 'master_resume' AND job_id IS NULL ORDER BY version DESC, id DESC LIMIT 1",
+            [],
+            |r| r.get(0),
+        )
+        .optional()?
+        .unwrap_or_default())
+}
+
+/// (Re)computes compatibility scores. `only` = a single job; None = every job.
+pub fn score_jobs(c: &Connection, only: Option<i64>) -> AppResult<usize> {
+    let prefs = get_preferences(c)?;
+    let facts = crate::scoring::profile_facts(&get_profile(c)?, &master_resume_text(c)?, today());
+    let jobs = match only {
+        Some(id) => vec![get_job(c, id)?],
+        None => list_jobs(c)?,
+    };
+    let tx = c.unchecked_transaction()?;
+    for j in &jobs {
+        let b = crate::scoring::score(&j.draft, &j.salary_flag, &j.excluded_reasons, &facts, &prefs);
+        let text = crate::scoring::assessment(&j.draft, &b);
+        tx.execute(
+            "UPDATE jobs SET score = ?1, score_breakdown = ?2, assessment = ?3 WHERE id = ?4",
+            params![b.total, serde_json::to_string(&b).map_err(AppError::other)?, text, j.id],
+        )?;
+    }
+    tx.commit()?;
+    Ok(jobs.len())
 }
 
 pub fn reevaluate_all(c: &Connection, p: &Preferences) -> AppResult<usize> {
@@ -303,6 +342,7 @@ pub fn reevaluate_all(c: &Connection, p: &Preferences) -> AppResult<usize> {
         )?;
     }
     tx.commit()?;
+    score_jobs(c, None)?;
     Ok(jobs.len())
 }
 
@@ -692,7 +732,16 @@ pub fn get_profile(c: &Connection) -> AppResult<ProfileBundle> {
             .collect::<Result<Vec<_>, _>>()?;
         v
     };
-    Ok(ProfileBundle { basics, experience, skills, certifications, accomplishments, documents: list_documents(c, None)? })
+    let education = {
+        let mut st = c.prepare("SELECT id, institution, degree, field, minor, start_year, end_year, notes FROM education ORDER BY end_year DESC, id")?;
+        let v = st
+            .query_map([], |r| {
+                Ok(Education { id: r.get(0)?, institution: r.get(1)?, degree: r.get(2)?, field: r.get(3)?, minor: r.get(4)?, start_year: r.get(5)?, end_year: r.get(6)?, notes: r.get(7)? })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        v
+    };
+    Ok(ProfileBundle { basics, experience, education, skills, certifications, accomplishments, documents: list_documents(c, None)? })
 }
 
 pub fn save_profile_basics(c: &Connection, b: &ProfileBasics) -> AppResult<()> {
@@ -791,9 +840,31 @@ pub fn save_accomplishment(c: &Connection, x: &Accomplishment) -> AppResult<i64>
     }
 }
 
+pub fn save_education(c: &Connection, x: &Education) -> AppResult<i64> {
+    if x.institution.trim().is_empty() {
+        return Err(AppError::invalid("School name is required"));
+    }
+    match x.id {
+        Some(id) => {
+            c.execute(
+                "UPDATE education SET institution=?1, degree=?2, field=?3, minor=?4, start_year=?5, end_year=?6, notes=?7 WHERE id=?8",
+                params![x.institution.trim(), x.degree, x.field, x.minor, x.start_year, x.end_year, x.notes, id],
+            )?;
+            Ok(id)
+        }
+        None => {
+            c.execute(
+                "INSERT INTO education (institution, degree, field, minor, start_year, end_year, notes) VALUES (?1,?2,?3,?4,?5,?6,?7)",
+                params![x.institution.trim(), x.degree, x.field, x.minor, x.start_year, x.end_year, x.notes],
+            )?;
+            Ok(c.last_insert_rowid())
+        }
+    }
+}
+
 pub fn delete_profile_item(c: &Connection, table: &str, id: i64) -> AppResult<()> {
     let table = match table {
-        "experience" | "skills" | "certifications" | "accomplishments" => table,
+        "experience" | "skills" | "certifications" | "accomplishments" | "education" => table,
         _ => return Err(AppError::invalid("Unknown profile section")),
     };
     c.execute(&format!("DELETE FROM {table} WHERE id = ?1"), [id])?;
@@ -972,6 +1043,16 @@ mod tests {
     }
 
     #[test]
+    fn update_keeps_detection_notes() {
+        let c = open_in_memory().unwrap();
+        let id = insert_job(&c, &draft("Contoso", "Ops Analyst"), false, false).unwrap().id.unwrap();
+        let mut d = get_job(&c, id).unwrap().draft;
+        d.detection_notes = vec!["Edited by me".into()];
+        update_job(&c, id, &d).unwrap();
+        assert_eq!(get_job(&c, id).unwrap().draft.detection_notes, vec!["Edited by me".to_string()]);
+    }
+
+    #[test]
     fn validation() {
         let c = open_in_memory().unwrap();
         assert!(insert_job(&c, &draft("", "X"), false, false).is_err());
@@ -1047,7 +1128,12 @@ mod tests {
         assert!(s.submitted >= 2);
         assert!(s.interviews_scheduled >= 1);
         assert_eq!(s.activity.len(), 12);
-        assert_eq!(s.unscored, n as i64, "Phase 1 never invents scores");
+        assert_eq!(s.unscored, 0, "every job is scored on save");
+        let bucketed: i64 = s.score_buckets.iter().filter(|b| b.label != "Unscored").map(|b| b.count).sum();
+        assert_eq!(bucketed, n as i64);
+        let excluded_job = list_jobs(&c).unwrap().into_iter().find(|j| !j.excluded_reasons.is_empty()).unwrap();
+        assert!(excluded_job.score.unwrap() <= 39, "jobs failing a mandatory rule are capped");
+        assert!(excluded_job.assessment.as_deref().unwrap_or("").starts_with("Not recommended"));
         assert!(s.interview_rate.is_some());
         assert!(s.excluded >= 1);
         let total_in_activity: i64 = s.activity.iter().map(|a| a.discovered).sum();

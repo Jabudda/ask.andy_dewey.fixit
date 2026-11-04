@@ -1,5 +1,7 @@
 pub mod command_center;
 pub mod commands;
+pub mod connectors;
+pub mod discovery;
 pub mod db;
 pub mod documents;
 pub mod eligibility;
@@ -7,12 +9,45 @@ pub mod error;
 pub mod export;
 pub mod models;
 pub mod parse;
+pub mod scoring;
 
 use commands::AppState;
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 pub const DB_FILE: &str = "next_chapter.sqlite";
+
+/// Runs scheduled searches while the app is open. Checks once a minute; the interval lives in
+/// settings (0 = off). Uses its own database connection so the UI is never blocked.
+fn start_scheduler(handle: tauri::AppHandle, db_path: std::path::PathBuf) {
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(90));
+        loop {
+            let due = db::open(&db_path)
+                .and_then(|c| {
+                    let d = discovery::due(&c, chrono::Local::now().naive_local())?;
+                    if d {
+                        discovery::mark_scheduled(&c)?;
+                    }
+                    Ok(d)
+                })
+                .unwrap_or(false);
+            if due {
+                match tauri::async_runtime::block_on(discovery::run_with_path(&db_path, None, "scheduled")) {
+                    Ok(summaries) => {
+                        let _ = handle.emit("discovery-finished", &summaries);
+                    }
+                    Err(e) => {
+                        if let Ok(c) = db::open(&db_path) {
+                            db::log(&c, "error", "schedule", &format!("Scheduled search failed: {e}"));
+                        }
+                    }
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_secs(60));
+        }
+    });
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -28,7 +63,8 @@ pub fn run() {
                 let _ = db::reevaluate_all(&conn, &p);
             }
             db::log(&conn, "info", "app", &format!("Started v{}", env!("CARGO_PKG_VERSION")));
-            app.manage(AppState { db: Mutex::new(conn), data_dir });
+            app.manage(AppState { db: Mutex::new(conn), data_dir: data_dir.clone() });
+            start_scheduler(app.handle().clone(), data_dir.join(DB_FILE));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -46,6 +82,16 @@ pub fn run() {
             commands::import_document,
             commands::delete_document,
             commands::import_command_center,
+            commands::save_education,
+            commands::rescore_jobs,
+            commands::list_sources,
+            commands::save_source,
+            commands::delete_source,
+            commands::detect_source,
+            commands::list_search_runs,
+            commands::get_search_settings,
+            commands::set_search_interval,
+            commands::run_discovery,
             commands::open_document,
             commands::parse_pasted_job,
             commands::fetch_job_from_url,

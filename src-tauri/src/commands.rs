@@ -59,23 +59,37 @@ pub fn save_profile_basics(state: S, basics: ProfileBasics) -> AppResult<()> {
 }
 #[tauri::command]
 pub fn save_experience(state: S, item: Experience) -> AppResult<i64> {
-    db::save_experience(&*state.conn()?, &item)
+    { let c = state.conn()?; let id = db::save_experience(&c, &item)?; db::score_jobs(&c, None)?; Ok(id) }
 }
 #[tauri::command]
 pub fn save_skill(state: S, item: Skill) -> AppResult<i64> {
-    db::save_skill(&*state.conn()?, &item)
+    { let c = state.conn()?; let id = db::save_skill(&c, &item)?; db::score_jobs(&c, None)?; Ok(id) }
 }
 #[tauri::command]
 pub fn save_certification(state: S, item: Certification) -> AppResult<i64> {
-    db::save_certification(&*state.conn()?, &item)
+    { let c = state.conn()?; let id = db::save_certification(&c, &item)?; db::score_jobs(&c, None)?; Ok(id) }
 }
 #[tauri::command]
 pub fn save_accomplishment(state: S, item: Accomplishment) -> AppResult<i64> {
-    db::save_accomplishment(&*state.conn()?, &item)
+    { let c = state.conn()?; let id = db::save_accomplishment(&c, &item)?; db::score_jobs(&c, None)?; Ok(id) }
 }
 #[tauri::command]
 pub fn delete_profile_item(state: S, section: String, id: i64) -> AppResult<()> {
-    db::delete_profile_item(&*state.conn()?, &section, id)
+    let c = state.conn()?;
+    db::delete_profile_item(&c, &section, id)?;
+    db::score_jobs(&c, None)?;
+    Ok(())
+}
+#[tauri::command]
+pub fn save_education(state: S, item: Education) -> AppResult<i64> {
+    let c = state.conn()?;
+    let id = db::save_education(&c, &item)?;
+    db::score_jobs(&c, None)?;
+    Ok(id)
+}
+#[tauri::command]
+pub fn rescore_jobs(state: S) -> AppResult<usize> {
+    db::score_jobs(&*state.conn()?, None)
 }
 
 /// Copies a user-selected file into the app's documents folder and extracts its text.
@@ -111,9 +125,13 @@ pub fn import_document_into(c: &Connection, docs_dir: &Path, src: &Path, kind: &
 #[tauri::command]
 pub fn import_document(state: S, path: String, kind: String) -> AppResult<DocumentImportResult> {
     let c = state.conn()?;
-    import_document_into(&c, &state.documents_dir(), Path::new(&path), &kind).inspect_err(|e| {
+    let r = import_document_into(&c, &state.documents_dir(), Path::new(&path), &kind).inspect_err(|e| {
         db::log(&c, "error", "documents", &format!("Import failed for {path}: {e}"));
-    })
+    })?;
+    if kind == "master_resume" {
+        db::score_jobs(&c, None)?;
+    }
+    Ok(r)
 }
 
 #[tauri::command]
@@ -187,8 +205,12 @@ async fn fetch_html(url: &str) -> AppResult<String> {
 #[tauri::command]
 pub async fn import_command_center(state: State<'_, AppState>, path: String, dry_run: bool) -> AppResult<crate::command_center::ImportReport> {
     let c = state.conn()?;
-    crate::command_center::run(&c, &state.documents_dir(), Path::new(&path), dry_run)
-        .inspect_err(|e| db::log(&c, "error", "import", &format!("Folder import failed: {e}")))
+    let r = crate::command_center::run(&c, &state.documents_dir(), Path::new(&path), dry_run)
+        .inspect_err(|e| db::log(&c, "error", "import", &format!("Folder import failed: {e}")))?;
+    if !dry_run {
+        db::score_jobs(&c, None)?;
+    }
+    Ok(r)
 }
 
 /// Opens a stored document with its default macOS app (only files this app knows about).
@@ -197,6 +219,47 @@ pub fn open_document(state: S, id: i64) -> AppResult<()> {
     let d = db::get_document(&*state.conn()?, id)?;
     std::process::Command::new("open").arg(&d.stored_path).spawn().map_err(AppError::other)?;
     Ok(())
+}
+
+// ── discovery ──
+#[tauri::command]
+pub fn list_sources(state: S) -> AppResult<Vec<JobSource>> {
+    crate::discovery::list_sources(&*state.conn()?)
+}
+#[tauri::command]
+pub fn save_source(state: S, source: JobSource) -> AppResult<i64> {
+    crate::discovery::save_source(&*state.conn()?, &source)
+}
+#[tauri::command]
+pub fn delete_source(state: S, id: i64) -> AppResult<()> {
+    crate::discovery::delete_source(&*state.conn()?, id)
+}
+#[tauri::command]
+pub fn detect_source(url: String) -> Option<(String, String)> {
+    crate::connectors::detect_source(&url)
+}
+#[tauri::command]
+pub fn list_search_runs(state: S) -> AppResult<Vec<SearchRun>> {
+    crate::discovery::list_runs(&*state.conn()?, 60)
+}
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchSettings {
+    pub interval_hours: i64,
+    pub last_scheduled: Option<String>,
+}
+#[tauri::command]
+pub fn get_search_settings(state: S) -> AppResult<SearchSettings> {
+    let c = state.conn()?;
+    Ok(SearchSettings { interval_hours: crate::discovery::interval_hours(&c)?, last_scheduled: crate::discovery::last_scheduled(&c)? })
+}
+#[tauri::command]
+pub fn set_search_interval(state: S, hours: i64) -> AppResult<()> {
+    crate::discovery::set_interval_hours(&*state.conn()?, hours)
+}
+#[tauri::command]
+pub async fn run_discovery(state: State<'_, AppState>, source_id: Option<i64>) -> AppResult<Vec<crate::discovery::RunSummary>> {
+    crate::discovery::run_with_path(&state.data_dir.join(crate::DB_FILE), source_id, "manual").await
 }
 
 // ── jobs ──

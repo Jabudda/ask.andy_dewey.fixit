@@ -79,6 +79,7 @@ pub struct Job {
     pub expired: bool,
     pub status: String,
     pub score: Option<i64>,
+    pub score_breakdown: Option<ScoreBreakdown>,
     pub assessment: Option<String>,
     pub notes: String,
     pub submitted_at: Option<String>,
@@ -179,6 +180,31 @@ pub struct Preferences {
     pub keywords: Vec<String>,
     pub excluded_keywords: Vec<String>,
     pub follow_up_days: i64,
+    /// Keyword searches sent to keyword-based boards (e.g. Remotive).
+    pub search_queries: Vec<String>,
+    /// Ignore discovered postings older than this.
+    pub max_posting_age_days: i64,
+    pub scoring_weights: ScoringWeights,
+}
+
+/// Relative importance of each compatibility criterion (any non-negative numbers; normalised).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ScoringWeights {
+    pub title: f64,
+    pub skills: f64,
+    pub required: f64,
+    pub preferred: f64,
+    pub compensation: f64,
+    pub remote: f64,
+    pub seniority: f64,
+    pub certifications: f64,
+}
+
+impl Default for ScoringWeights {
+    fn default() -> Self {
+        ScoringWeights { title: 15.0, skills: 25.0, required: 20.0, preferred: 5.0, compensation: 10.0, remote: 15.0, seniority: 5.0, certifications: 5.0 }
+    }
 }
 
 impl Default for Preferences {
@@ -227,6 +253,17 @@ impl Default for Preferences {
             ]),
             excluded_keywords: vec![],
             follow_up_days: 14,
+            search_queries: v(&[
+                "smartsheet",
+                "business operations",
+                "operations coordinator",
+                "project coordinator",
+                "data analyst",
+                "technical support",
+                "process improvement",
+            ]),
+            max_posting_age_days: 30,
+            scoring_weights: ScoringWeights::default(),
         }
     }
 }
@@ -302,11 +339,82 @@ pub struct DocumentRec {
     pub created_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Education {
+    pub id: Option<i64>,
+    pub institution: String,
+    pub degree: String,
+    pub field: String,
+    pub minor: String,
+    pub start_year: String,
+    pub end_year: String,
+    pub notes: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct JobSource {
+    pub id: Option<i64>,
+    pub kind: String,
+    pub identifier: String,
+    pub label: String,
+    pub enabled: bool,
+    pub last_run_at: Option<String>,
+    pub last_status: Option<String>,
+    pub last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchRun {
+    pub id: i64,
+    pub source_id: Option<i64>,
+    pub connector: String,
+    pub trigger: String,
+    pub started_at: String,
+    pub finished_at: Option<String>,
+    pub found: i64,
+    pub new_jobs: i64,
+    pub filtered: i64,
+    pub excluded: i64,
+    pub duplicates: i64,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CriterionScore {
+    pub key: String,
+    pub label: String,
+    pub weight: f64,
+    /// 0.0 – 1.0
+    pub score: f64,
+    pub detail: String,
+}
+
+/// Stored as JSON in jobs.score_breakdown.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ScoreBreakdown {
+    pub total: i64,
+    pub criteria: Vec<CriterionScore>,
+    pub satisfied: Vec<String>,
+    pub partial: Vec<String>,
+    pub gaps: Vec<String>,
+    /// Requirements the app could not judge from your profile — your call, not counted as met.
+    pub unverified: Vec<String>,
+    pub assumptions: Vec<String>,
+    /// apply | consider | skip
+    pub recommendation: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProfileBundle {
     pub basics: ProfileBasics,
     pub experience: Vec<Experience>,
+    pub education: Vec<Education>,
     pub skills: Vec<Skill>,
     pub certifications: Vec<Certification>,
     pub accomplishments: Vec<Accomplishment>,

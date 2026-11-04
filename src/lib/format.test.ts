@@ -6,7 +6,7 @@ function job(over: Partial<Job>): Job {
   return {
     ...emptyDraft(),
     id: 1, title: "Data Analyst", employer: "Fabrikam", salaryFlag: "missing", reviewFlags: [], excludedReasons: [],
-    expired: false, status: "Discovered", score: null, assessment: null, notes: "", submittedAt: null,
+    expired: false, status: "Discovered", score: null, scoreBreakdown: null, assessment: null, notes: "", submittedAt: null,
     confirmationRef: null, confirmationMethod: null, isSample: false, discoveredAt: "2026-11-01 10:00:00",
     updatedAt: "2026-11-01 10:00:00",
     ...over,

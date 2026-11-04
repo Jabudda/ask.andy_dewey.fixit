@@ -18,6 +18,7 @@ export function Preferences() {
         targetTitles: x.targetTitles.join("\n"),
         preferredFields: x.preferredFields.join("\n"),
         keywords: x.keywords.join("\n"),
+        searchQueries: x.searchQueries.join("\n"),
         excludedKeywords: x.excludedKeywords.join("\n"),
       });
     }).catch(fail);
@@ -31,11 +32,12 @@ export function Preferences() {
       preferredFields: parseList(lists.preferredFields),
       keywords: parseList(lists.keywords),
       excludedKeywords: parseList(lists.excludedKeywords),
+      searchQueries: parseList(lists.searchQueries),
     };
     try {
       const n = await api.savePreferences(next);
       setP(next);
-      notify("ok", `Preferences saved. ${n} saved job${n === 1 ? "" : "s"} re-checked against the new rules.`);
+      notify("ok", `Preferences saved. ${n} saved job${n === 1 ? "" : "s"} re-checked and re-scored.`);
     } catch (e) { fail(e); }
   };
 
@@ -85,10 +87,14 @@ export function Preferences() {
       </Card>
 
       <div className="two-col">
-        <Card title="Search targets (used by Phase 2 discovery & scoring)">
+        <Card title="Search targets (discovery & scoring)">
           <div className="form-grid one">
-            {listField("targetTitles", "Job titles", "One per line")}
+            {listField("targetTitles", "Job titles", "One per line. Used for relevance and title scoring")}
             {listField("preferredFields", "Preferred fields", "One per line")}
+            {listField("searchQueries", "Searches sent to public job boards", "One per line, e.g. “smartsheet”, “operations coordinator”. Up to 10 are used")}
+            <Field label="Ignore postings older than (days)">
+              <input inputMode="numeric" value={p.maxPostingAgeDays} onChange={(e) => setP({ ...p, maxPostingAgeDays: Number(e.target.value) || 30 })} />
+            </Field>
           </div>
         </Card>
         <Card title="Keywords">
@@ -98,6 +104,21 @@ export function Preferences() {
           </div>
         </Card>
       </div>
+      <Card title="Compatibility scoring weights" actions={<button className="btn small" onClick={() => setP({ ...p, scoringWeights: { title: 15, skills: 25, required: 20, preferred: 5, compensation: 10, remote: 15, seniority: 5, certifications: 5 } })}>Reset to defaults</button>}>
+        <p className="muted small">How much each criterion counts toward the 0–100 score. Any numbers work, because they're relative. Set one to 0 to ignore it. Saving re-scores every job.</p>
+        <div className="form-grid">
+          {([
+            ["title", "Title & field alignment"], ["skills", "Skills & tools"], ["required", "Required qualifications"],
+            ["preferred", "Preferred qualifications"], ["compensation", "Compensation"], ["remote", "Remote eligibility"],
+            ["seniority", "Seniority & scope"], ["certifications", "Certifications"],
+          ] as [keyof Prefs["scoringWeights"], string][]).map(([k, label]) => (
+            <Field key={k} label={`${label}: ${p.scoringWeights[k]}`}>
+              <input type="range" min={0} max={40} step={1} value={p.scoringWeights[k]}
+                onChange={(e) => setP({ ...p, scoringWeights: { ...p.scoringWeights, [k]: Number(e.target.value) } })} />
+            </Field>
+          ))}
+        </div>
+      </Card>
     </div>
   );
 }

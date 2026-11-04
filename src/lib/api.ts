@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   Accomplishment, AppInfo, Certification, Contact, DashboardStats, DocumentImportResult, Experience, Interview, Job,
-  ImportReport, JobDetail, JobDraft, LogEntry, Preferences, ProfileBasics, ProfileBundle, Reminder, SaveJobResult, Skill, StatusChange,
+  Education, ImportReport, JobSource, RunSummary, SearchRun, SearchSettings, JobDetail, JobDraft, LogEntry, Preferences, ProfileBasics, ProfileBundle, Reminder, SaveJobResult, Skill, StatusChange,
 } from "./types";
 
 /** True when running inside the Tauri shell (false in a plain browser tab). */
@@ -27,7 +27,9 @@ export const api = {
   saveSkill: (item: Skill) => call<number>("save_skill", { item }),
   saveCertification: (item: Certification) => call<number>("save_certification", { item }),
   saveAccomplishment: (item: Accomplishment) => call<number>("save_accomplishment", { item }),
-  deleteProfileItem: (section: "experience" | "skills" | "certifications" | "accomplishments", id: number) =>
+  saveEducation: (item: Education) => call<number>("save_education", { item }),
+  rescoreJobs: () => call<number>("rescore_jobs"),
+  deleteProfileItem: (section: "experience" | "skills" | "certifications" | "accomplishments" | "education", id: number) =>
     call<void>("delete_profile_item", { section, id }),
   importDocument: (path: string, kind: string) => call<DocumentImportResult>("import_document", { path, kind }),
   deleteDocument: (id: number) => call<void>("delete_document", { id }),
@@ -49,6 +51,15 @@ export const api = {
   deleteJobItem: (kind: "contacts" | "interviews" | "reminders", id: number) => call<void>("delete_job_item", { kind, id }),
 
   dashboardStats: () => call<DashboardStats>("dashboard_stats"),
+
+  listSources: () => call<JobSource[]>("list_sources"),
+  saveSource: (source: JobSource) => call<number>("save_source", { source }),
+  deleteSource: (id: number) => call<void>("delete_source", { id }),
+  detectSource: (url: string) => call<[string, string] | null>("detect_source", { url }),
+  listSearchRuns: () => call<SearchRun[]>("list_search_runs"),
+  getSearchSettings: () => call<SearchSettings>("get_search_settings"),
+  setSearchInterval: (hours: number) => call<void>("set_search_interval", { hours }),
+  runDiscovery: (sourceId?: number) => call<RunSummary[]>("run_discovery", { sourceId: sourceId ?? null }),
 
   exportJobs: (path: string, format: "csv" | "xlsx") => call<number>("export_jobs", { path, format }),
   backupDatabase: (path: string) => call<void>("backup_database", { path }),

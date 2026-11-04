@@ -8,7 +8,37 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, database 
 
 ---
 
-## Phase 1 status (this release)
+## Phase 2 status (this release): discovery and scoring
+
+### Working and covered by automated tests
+| Area | What works |
+|---|---|
+| **Job sources** | Documented public APIs only: **Greenhouse**, **Lever** and **Ashby** company job boards; **Himalayas** (US-eligible remote jobs, keyword search); **Jobicy** (remote US jobs, keyword search; listings credited to Jobicy, applications go to the original URL); **Remotive** (latest postings). There's no logging in, no page scraping and no bot-protection bypass |
+| **Watch an employer** | Paste any job link from the company and **Job search** recognises the board automatically (for example Smartsheet on Greenhouse, Vetcove and Harvey on Ashby, Civitech on Lever) |
+| **Discovery pipeline** | Fetch, then keep only relevant postings (title alignment or several of your keywords) that are within your maximum posting age and not expired. Postings that fail a mandatory rule (on-site or hybrid, Wisconsin excluded, pay below minimum, excluded keyword) are counted but not saved. Duplicates are caught by employer, title and canonical URL. New jobs are saved as Discovered and scored |
+| **Scheduled searches** | Every 6, 12, 24 or 48 hours while the app is open (default 12; Off is available). Shared public boards are polled at most every 4 hours. Each run is recorded with found, new, filtered, failed-rules, duplicates and the exact error. Failed sources show red in **Job search** and in the log |
+| **Compatibility score (0–100)** | Eight weighted criteria you can adjust in Preferences: title and field, skills and tools, required qualifications, preferred qualifications, compensation, remote eligibility, seniority (inferred) and certifications. Credit comes **only from your verified profile and master resume**. Requirements it can't check are listed as "your judgment" and count below neutral. Thin postings are capped at "consider". Failing a mandatory rule caps the score at 39, and a clearly missing required qualification (degree, clearance, certification) caps it at 59 |
+| **Hiring-manager assessment** | Per job: a recommendation (apply, consider or skip), why you fit, requirements met, partially met, gaps, items that couldn't be checked, and the assumptions it made |
+| **Profile** | Education section, used for degree checks. Jobs are re-scored automatically whenever your profile, master resume or preferences change |
+| **Folder import (improved)** | PDF line wraps are rejoined. A saved "posting" that contains your own name (an application page showing your resume) is never used as a job description |
+
+### Not yet (planned)
+* **AI-written assessments** (optional, opt-in, with the API key kept in Keychain, or a local model). Scoring today is rule-based and fully explainable.
+* **USAJOBS** (needs a free API key) and other key-based sources.
+* **Background searches while the app is closed** (would need an explicitly authorised macOS LaunchAgent).
+* **Phases 3–5** (documents, application assistance, packaging) as in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+### Known limitations
+* Remotive's free API currently ignores search terms and returns only its latest ~11 postings, so it rarely contributes.
+* Scores are heuristics built on keyword evidence. They don't read nuance, so always read the "your judgment" items.
+* Some company boards return hundreds of jobs per run, which is normal; only relevant ones are saved.
+
+### Developer tools (examples)
+* `cargo run --example discover_preview -- <db> greenhouse:smartsheet ashby:vetcove` runs a live discovery against any database file and prints the top scores.
+* `cargo run --example load_profile -- <db> <profile.json>` loads a verified profile from JSON. Keep that file outside the repo.
+* `cargo run --example import_apply -- <db> <documents-dir> <folder>` runs a real folder import.
+
+## Phase 1 status
 
 ### Working and covered by automated tests
 | Area | What works |
@@ -81,7 +111,7 @@ npm test
 npm run test:rust
 ```
 
-* **Rust (40 tests):** parsing (JSON-LD, pasted text, remote, Wisconsin, pay, employment type), eligibility rules, duplicate detection, status guards, preferences re-check, milestone isolation, dashboard metrics, follow-ups, profile CRUD, document import and extraction, CSV/XLSX export, backup/restore round-trip, rejection of non-backup files, log search, real PDF text extraction, and folder import (dry run writes nothing, statuses and dates, folder-based matching, no matching on document text, certificate parsing, idempotent re-run).
+* **Rust (65 tests):** includes scoring (evidence-only credit, caps, weights, thin postings, years merging), all six connectors parsed from recorded API shapes, discovery filtering and run records, failure reporting, scheduling, and parsing (JSON-LD, pasted text, remote, Wisconsin, pay, employment type), eligibility rules, duplicate detection, status guards, preferences re-check, milestone isolation, dashboard metrics, follow-ups, profile CRUD, document import and extraction, CSV/XLSX export, backup/restore round-trip, rejection of non-backup files, log search, real PDF text extraction, and folder import (dry run writes nothing, statuses and dates, folder-based matching, no matching on document text, certificate parsing, idempotent re-run).
 * **TypeScript (8 tests):** countdown, money and pay formatting, annualisation, list parsing, filtering and sorting.
 
 ## Using the app (first 10 minutes)

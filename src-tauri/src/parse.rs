@@ -168,6 +168,37 @@ pub fn canonical_url(raw: &str) -> Option<String> {
     })
 }
 
+/// Re-joins lines that a PDF wrapped mid-sentence, keeping bullets, headings and paragraphs.
+pub fn unwrap_text(t: &str) -> String {
+    const BULLETS: [char; 8] = ['•', '-', '*', '·', '–', '●', '▪', '◦'];
+    let mut out: Vec<String> = vec![];
+    for line in t.lines().map(str::trim) {
+        if line.is_empty() {
+            out.push(String::new());
+            continue;
+        }
+        if let Some(prev) = out.last_mut() {
+            let p = prev.trim_end();
+            let first = line.chars().next().unwrap_or(' ');
+            let continues = !p.is_empty()
+                && !line.starts_with(BULLETS)
+                && !p.ends_with(['.', ':', ';', '!', '?'])
+                && (first.is_lowercase()
+                    || first.is_ascii_digit()
+                    || matches!(first, '(' | '&' | '+')
+                    || p.ends_with([',', '-', '/', '&', '('])
+                    || p.split_whitespace().count() >= 6);
+            if continues {
+                prev.push(' ');
+                prev.push_str(line);
+                continue;
+            }
+        }
+        out.push(line.to_string());
+    }
+    RE_MULTI_NL.replace_all(out.join("\n").trim(), "\n\n").to_string()
+}
+
 pub fn normalize_date(raw: &str) -> Option<String> {
     let t = raw.trim();
     let head = t.get(..10).unwrap_or(t);
@@ -609,6 +640,16 @@ mod tests {
             Some("boards.example.com/job?id=9".into())
         );
         assert_eq!(canonical_url("ftp://example.com/x"), None);
+    }
+
+    #[test]
+    fn unwraps_pdf_lines() {
+        let t = "What you'll need\nCustomer-facing program experience.\n4+\nyears of relevant experience in program\nmanagement, implementation, customer\nsuccess or consulting.\n• Excel\n• Smartsheet";
+        let u = unwrap_text(t);
+        assert_eq!(
+            u,
+            "What you'll need\nCustomer-facing program experience.\n4+ years of relevant experience in program management, implementation, customer success or consulting.\n• Excel\n• Smartsheet"
+        );
     }
 
     #[test]

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { api } from "../lib/api";
-import type { Accomplishment, Certification, DocumentRec, Experience, ProfileBundle, Skill } from "../lib/types";
+import type { Accomplishment, Certification, DocumentRec, Education, Experience, ProfileBundle, Skill } from "../lib/types";
 import { docKindLabel, shortDate } from "../lib/format";
 import { Card, Empty, Field, confirmAction, useToast } from "../components/ui";
 
@@ -90,6 +90,7 @@ export function Profile() {
 
       <Basics p={p} onSaved={load} />
       <ExperienceSection items={p.experience} onChanged={load} />
+      <EducationSection items={p.education} onChanged={load} />
       <SkillsSection items={p.skills} onChanged={load} />
       <div className="two-col">
         <CertSection items={p.certifications} onChanged={load} />
@@ -154,6 +155,32 @@ function ExperienceSection({ items, onChanged }: { items: Experience[]; onChange
           <div className="btn-row"><button className="btn primary small" onClick={save}>Save position</button><button className="btn small" onClick={() => setX(null)}>Cancel</button></div>
         </div>
       )}
+    </Card>
+  );
+}
+
+function EducationSection({ items, onChanged }: { items: Education[]; onChanged: () => void }) {
+  const blank: Education = { institution: "", degree: "", field: "", minor: "", startYear: "", endYear: "", notes: "" };
+  const [x, setX] = useState(blank);
+  const { fail } = useToast();
+  return (
+    <Card title="Education">
+      <p className="muted small">Used to check degree requirements. Years are optional.</p>
+      {items.map((e) => (
+        <div key={e.id} className="list-row">
+          <div><strong>{e.degree || "Studies"}{e.field && `, ${e.field}`}</strong> · {e.institution}<div className="muted small">{[e.minor && `Minor: ${e.minor}`, (e.startYear || e.endYear) && `${e.startYear}–${e.endYear}`, e.notes].filter(Boolean).join(" · ")}</div></div>
+          <button className="link danger" onClick={() => api.deleteProfileItem("education", e.id!).then(onChanged).catch(fail)}>Remove</button>
+        </div>
+      ))}
+      <div className="form-grid">
+        <Field label="School"><input value={x.institution} onChange={(e) => setX({ ...x, institution: e.target.value })} /></Field>
+        <Field label="Degree"><input value={x.degree} placeholder="Bachelor's degree" onChange={(e) => setX({ ...x, degree: e.target.value })} /></Field>
+        <Field label="Field of study"><input value={x.field} onChange={(e) => setX({ ...x, field: e.target.value })} /></Field>
+        <Field label="Minor"><input value={x.minor} onChange={(e) => setX({ ...x, minor: e.target.value })} /></Field>
+        <Field label="Start year"><input value={x.startYear} onChange={(e) => setX({ ...x, startYear: e.target.value })} /></Field>
+        <Field label="End year"><input value={x.endYear} onChange={(e) => setX({ ...x, endYear: e.target.value })} /></Field>
+      </div>
+      <button className="btn small" disabled={!x.institution.trim()} onClick={() => api.saveEducation(x).then(() => { setX(blank); onChanged(); }).catch(fail)}>Add education</button>
     </Card>
   );
 }

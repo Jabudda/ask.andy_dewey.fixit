@@ -34,7 +34,7 @@ export function Dashboard({ go }: { go: Nav }) {
 
   const kpis: [string, number, string, () => void][] = [
     ["Jobs discovered", s.totalJobs, `${s.excluded} excluded · ${s.needsReview} need review`, () => go({ page: "jobs" })],
-    ["Strong matches", s.strongMatches, s.unscored ? `${s.unscored} not yet scored (Phase 2)` : "Score ≥ 75", () => go({ page: "jobs" })],
+    ["Strong matches", s.strongMatches, "Compatibility ≥ 75", () => go({ page: "jobs" })],
     ["Awaiting approval", s.awaitingApproval, "Your decision needed", () => go({ page: "jobs", status: "Awaiting Approval" })],
     ["Applications submitted", s.submitted, "Confirmed submissions only", () => go({ page: "jobs", status: "Submitted" })],
     ["Interviews scheduled", s.interviewsScheduled, "Upcoming", () => go({ page: "jobs", status: "Interviewing" })],
@@ -108,7 +108,7 @@ export function Dashboard({ go }: { go: Nav }) {
         </Card>
         <Card title="Jobs by compatibility score">
           <HBarChart data={s.scoreBuckets} />
-          <p className="muted small">Compatibility scoring is added in Phase 2. Until then every job is shown as “Unscored” rather than given an estimated score.</p>
+          <p className="muted small">Scores compare each posting with your verified profile only. Open a job to see exactly why it scored as it did.</p>
         </Card>
       </div>
 

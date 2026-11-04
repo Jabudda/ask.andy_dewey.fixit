@@ -593,15 +593,22 @@ fn import_tracker(cx: &Ctx, r: &mut ImportReport, tracker: &Path) -> AppResult<V
     Ok(refs)
 }
 
+const POSTING_NOTE: &str = "Description taken from your saved posting";
+
 /// Uses a saved posting's text as the job description and re-checks location eligibility against it.
-fn apply_posting(c: &Connection, job_id: i64, file: &str, text: &str) -> AppResult<bool> {
+/// Only fills an empty description, or refreshes one that an earlier import took from a posting.
+fn apply_posting(c: &Connection, job_id: i64, file: &str, text: &str, from_posting: bool) -> AppResult<bool> {
     let job = db::get_job(c, job_id)?;
-    if !job.draft.description.trim().is_empty() || text.trim().len() < 200 {
+    if (!job.draft.description.trim().is_empty() && !from_posting) || text.trim().len() < 200 {
         return Ok(false);
     }
+    if from_posting && job.draft.description == text {
+        return Ok(true);
+    }
     let mut d = job.draft.clone();
+    d.detection_notes.retain(|n| !n.starts_with(POSTING_NOTE) && !n.ends_with("(from saved posting)"));
     d.description = text.to_string();
-    d.detection_notes.push(format!("Description taken from your saved posting “{file}”"));
+    d.detection_notes.push(format!("{POSTING_NOTE} “{file}”"));
     let (wi, note) = parse::detect_wisconsin(text);
     if wi == "excluded" || d.wisconsin_eligibility == "unknown" {
         if wi != "unknown" {
@@ -788,10 +795,40 @@ fn import(c: &Connection, docs_dir: &Path, root: &Path, dry_run: bool) -> AppRes
             r.warnings.push(format!("{} — could not match it to a single tracker row; stored unlinked", rel(root, p)));
         }
         let added = cx.add_doc(&mut r, p, kind, job)?;
-        if let (Some(j), Some(text)) = (job, added) {
+        if let (Some(j), Some(_)) = (job, added) {
             *linked.entry(j.id).or_default() += 1;
-            if kind == "job_posting" && apply_posting(c, j.id, &rel(root, p), &text)? {
-                postings.insert(j.id, rel(root, p));
+        }
+    }
+
+    // 4b. Job descriptions from saved posting PDFs. A "posting" that contains your own name is an
+    //     application page showing your resume, so it is never used — it would credit the posting
+    //     with your own skills.
+    let me = db::get_profile(c)?.basics.full_name.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase();
+    for j in &jobs {
+        let docs = db::list_documents(c, Some(j.id))?;
+        let current = db::get_job(c, j.id)?;
+        let from_posting = current.draft.detection_notes.iter().any(|n| n.starts_with(POSTING_NOTE))
+            || (!current.draft.description.is_empty()
+                && docs.iter().any(|d| d.kind == "job_posting" && (d.extracted_text == current.draft.description || parse::unwrap_text(&d.extracted_text) == current.draft.description)));
+        let mut cands: Vec<&DocumentRec> = docs
+            .iter()
+            .filter(|d| d.kind == "job_posting" && d.extracted_text.trim().len() >= 200)
+            .filter(|d| me.len() < 4 || !d.extracted_text.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase().contains(&me))
+            .collect();
+        cands.sort_by_key(|d| std::cmp::Reverse(d.extracted_text.len()));
+        if let Some(d) = cands.first() {
+            if apply_posting(c, j.id, &d.file_name, &parse::unwrap_text(&d.extracted_text), from_posting)? {
+                postings.insert(j.id, d.file_name.clone());
+            }
+        } else {
+            // An earlier import may have used a page that turned out to be your own application.
+            let job = current;
+            if from_posting {
+                let mut d = job.draft.clone();
+                d.detection_notes.retain(|n| !n.starts_with(POSTING_NOTE) && !n.ends_with("(from saved posting)"));
+                d.description.clear();
+                db::update_job(c, j.id, &d)?;
+                r.warnings.push(format!("{} — {}: the saved “posting” is your own application page, so it is no longer used as the description", j.employer, j.title));
             }
         }
     }
@@ -963,6 +1000,21 @@ mod tests {
         assert!(r2.documents.iter().all(|d| d.action == "already imported"), "{:?}", r2.documents);
         assert_eq!(db::list_jobs(&c).unwrap().len(), 3);
         assert_eq!(db::get_profile(&c).unwrap().certifications.len(), 1);
+    }
+
+    #[test]
+    fn own_application_page_is_not_used_as_description() {
+        let dir = fixture();
+        let root = dir.path();
+        std::fs::remove_file(root.join("02 Applications Submitted/Data Analyst - Posting.pdf")).unwrap();
+        let page = "Data Analyst at Acme Analytics application review page showing the candidate details below and the resume they uploaded for this role today";
+        std::fs::write(root.join("02 Applications Submitted/Data Analyst - Posting.pdf"), make_pdf(&[&page[..70], &page[70..], "Applicant: Jordan", "Sample", "Crisis Management experience and many other skills listed here"])).unwrap();
+        let docs = tempfile::tempdir().unwrap();
+        let c = db::open_in_memory().unwrap();
+        db::save_profile_basics(&c, &ProfileBasics { full_name: "Jordan Sample".into(), ..Default::default() }).unwrap();
+        run(&c, docs.path(), root, false).unwrap();
+        let acme = db::list_jobs(&c).unwrap().into_iter().find(|j| j.draft.employer == "Acme Analytics").unwrap();
+        assert!(acme.draft.description.is_empty(), "application page with the applicant's name must not become the description");
     }
 
     #[test]

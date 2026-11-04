@@ -21,7 +21,18 @@ pub const SKILL_VOCABULARY: &[&str] = &[
     "Incident Management", "Emergency Management", "Business Continuity", "Data Analysis", "Data Cleanup",
     "Data Cleansing", "Data Validation", "Data Entry", "Reporting", "Dashboards", "KPI", "Pivot Tables",
     "XLOOKUP", "VLOOKUP", "Training", "Onboarding", "Workflow Automation", "Budget Tracking", "Scheduling",
+    "NICE CXone", "IVR", "SFTP", "HTML", "JavaScript", "JSON", "Drupal", "WordPress", "Contact Center", "Call Center",
+    "Customer Service", "Customer Experience", "Customer Support", "CRM", "HubSpot", "Zapier", "Airtable", "Workday",
+    "HRIS", "Google Workspace", "Slack", "SaaS", "Risk Management", "Status Reporting", "Data Quality", "Data Integrity",
+    "Quality Assurance", "Microsoft Office", "Program Management", "Operations Management", "Data Visualization",
+    "Snowflake", "Alteryx", "Requirements Definition", "Vendor Coordination", "EMFASIS",
 ];
+
+/// Case-insensitive whole-term matcher; spaces in a term also match hyphens ("customer-service").
+pub fn term_regex(term: &str) -> Regex {
+    let body = regex::escape(&term.to_lowercase()).replace(' ', r"[\s\-]+");
+    Regex::new(&format!(r"(?i)(?:^|[^a-z0-9]){body}(?:$|[^a-z0-9])")).unwrap()
+}
 
 static RE_PARA_END: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"</w:p>").unwrap());
 static RE_TAB: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<w:tab\s*/>").unwrap());
@@ -102,11 +113,7 @@ pub fn pdf_text(_path: &Path) -> AppResult<String> {
 pub fn suggest_skills(text: &str) -> Vec<String> {
     SKILL_VOCABULARY
         .iter()
-        .filter(|s| {
-            Regex::new(&format!(r"(?i)(?:^|[^A-Za-z0-9]){}(?:$|[^A-Za-z0-9])", regex::escape(s)))
-                .map(|r| r.is_match(text))
-                .unwrap_or(false)
-        })
+        .filter(|s| term_regex(s).is_match(text))
         .map(|s| s.to_string())
         .collect()
 }

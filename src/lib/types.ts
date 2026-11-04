@@ -48,6 +48,7 @@ export interface Job extends JobDraft {
   expired: boolean;
   status: Status | string;
   score: number | null;
+  scoreBreakdown: ScoreBreakdown | null;
   assessment: string | null;
   notes: string;
   submittedAt: string | null;
@@ -115,7 +116,37 @@ export interface Preferences {
   keywords: string[];
   excludedKeywords: string[];
   followUpDays: number;
+  searchQueries: string[];
+  maxPostingAgeDays: number;
+  scoringWeights: ScoringWeights;
 }
+
+export interface ScoringWeights {
+  title: number; skills: number; required: number; preferred: number;
+  compensation: number; remote: number; seniority: number; certifications: number;
+}
+export interface CriterionScore { key: string; label: string; weight: number; score: number; detail: string }
+export interface ScoreBreakdown {
+  total: number; criteria: CriterionScore[]; satisfied: string[]; partial: string[]; gaps: string[];
+  unverified: string[]; assumptions: string[]; recommendation: "apply" | "consider" | "skip" | string;
+}
+export interface Education {
+  id?: number | null; institution: string; degree: string; field: string; minor: string;
+  startYear: string; endYear: string; notes: string;
+}
+export interface JobSource {
+  id?: number | null; kind: string; identifier: string; label: string; enabled: boolean;
+  lastRunAt?: string | null; lastStatus?: string | null; lastError?: string | null;
+}
+export interface SearchRun {
+  id: number; sourceId: number | null; connector: string; trigger: string; startedAt: string; finishedAt: string | null;
+  found: number; newJobs: number; filtered: number; excluded: number; duplicates: number; error: string | null;
+}
+export interface RunSummary {
+  sourceId: number; label: string; found: number; newJobs: number; filtered: number; excluded: number;
+  duplicates: number; skippedReason: string | null; error: string | null; newTitles: string[];
+}
+export interface SearchSettings { intervalHours: number; lastScheduled: string | null }
 
 export interface ProfileBasics {
   fullName: string; email: string; phone: string; location: string;
@@ -132,6 +163,7 @@ export interface Accomplishment { id?: number | null; title: string; description
 export interface ProfileBundle {
   basics: ProfileBasics;
   experience: Experience[];
+  education: Education[];
   skills: Skill[];
   certifications: Certification[];
   accomplishments: Accomplishment[];

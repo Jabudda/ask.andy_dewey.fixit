@@ -5,6 +5,7 @@ import type { Contact, Interview, JobDetail as Detail, JobDraft, Reminder } from
 import { STATUSES } from "../lib/types";
 import { docKindLabel, draftOf, salaryText, shortDate } from "../lib/format";
 import { JobForm } from "../components/JobForm";
+import { ScoreCard } from "../components/ScoreCard";
 import { Card, EligibilityBadge, Empty, Field, RemoteBadge, SalaryBadge, StatusBadge, confirmAction, useToast } from "../components/ui";
 import type { Nav } from "../App";
 
@@ -65,7 +66,7 @@ export function JobDetail({ id, go }: { id: number; go: Nav }) {
               <div><span className="muted small">Pay · {salaryText(j)}</span><SalaryBadge value={j.salaryFlag} /></div>
               <div><span className="muted small">Type</span><span>{j.employmentType || "Not stated"}</span></div>
               <div><span className="muted small">Posted / valid through</span><span>{shortDate(j.postedDate) || "—"} / {shortDate(j.validThrough) || "—"}{j.expired && " (expired)"}</span></div>
-              <div><span className="muted small">Compatibility score</span><span className="muted">Not scored — Phase 2</span></div>
+              <div><span className="muted small">Compatibility score</span><span className="strong">{j.score ?? "—"}{j.score != null && "/100"}</span></div>
             </div>
             {j.excludedReasons.length > 0 && (
               <div className="alert alert-bad"><strong>✕ Fails a mandatory requirement</strong><ul>{j.excludedReasons.map((r, i) => <li key={i}>{r}</li>)}</ul></div>
@@ -80,6 +81,8 @@ export function JobDetail({ id, go }: { id: number; go: Nav }) {
               </details>
             )}
           </Card>
+
+          <ScoreCard b={j.scoreBreakdown} />
 
           <Card title="Job description" actions={
             editing
