@@ -10,6 +10,7 @@ pub mod export;
 pub mod models;
 pub mod parse;
 pub mod scoring;
+pub mod secrets;
 
 use commands::AppState;
 use std::sync::Mutex;
@@ -92,6 +93,9 @@ pub fn run() {
             commands::get_search_settings,
             commands::set_search_interval,
             commands::run_discovery,
+            commands::credential_status,
+            commands::save_credential,
+            commands::delete_credential,
             commands::open_document,
             commands::parse_pasted_job,
             commands::fetch_job_from_url,

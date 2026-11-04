@@ -14,6 +14,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, database 
 | Area | What works |
 |---|---|
 | **Job sources** | Documented public APIs only: **Greenhouse**, **Lever** and **Ashby** company job boards; **Himalayas** (US-eligible remote jobs, keyword search); **Jobicy** (remote US jobs, keyword search; listings credited to Jobicy, applications go to the original URL); **Remotive** (latest postings). There's no logging in, no page scraping and no bot-protection bypass |
+| **USAJOBS (federal)** | Remote federal postings **open to the public** (`HiringPath=public`), using your own free API key. The key is stored in the **macOS Keychain** (service `com.projectnextchapter.app`) and never in the database, logs, exports, backups or this repo. Federal grade, clearance and who-may-apply details are added to each description. The first search may show a Keychain prompt; choose **Always Allow** |
 | **Watch an employer** | Paste any job link from the company and **Job search** recognises the board automatically (for example Smartsheet on Greenhouse, Vetcove and Harvey on Ashby, Civitech on Lever) |
 | **Discovery pipeline** | Fetch, then keep only relevant postings (title alignment or several of your keywords) that are within your maximum posting age and not expired. Postings that fail a mandatory rule (on-site or hybrid, Wisconsin excluded, pay below minimum, excluded keyword) are counted but not saved. Duplicates are caught by employer, title and canonical URL. New jobs are saved as Discovered and scored |
 | **Scheduled searches** | Every 6, 12, 24 or 48 hours while the app is open (default 12; Off is available). Shared public boards are polled at most every 4 hours. Each run is recorded with found, new, filtered, failed-rules, duplicates and the exact error. Failed sources show red in **Job search** and in the log |
@@ -24,11 +25,11 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, database 
 
 ### Not yet (planned)
 * **AI-written assessments** (optional, opt-in, with the API key kept in Keychain, or a local model). Scoring today is rule-based and fully explainable.
-* **USAJOBS** (needs a free API key) and other key-based sources.
 * **Background searches while the app is closed** (would need an explicitly authorised macOS LaunchAgent).
 * **Phases 3–5** (documents, application assistance, packaging) as in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ### Known limitations
+* Remote federal jobs open to the public are scarce (a handful at any time), so USAJOBS often adds nothing new.
 * Remotive's free API currently ignores search terms and returns only its latest ~11 postings, so it rarely contributes.
 * Scores are heuristics built on keyword evidence. They don't read nuance, so always read the "your judgment" items.
 * Some company boards return hundreds of jobs per run, which is normal; only relevant ones are saved.
@@ -111,7 +112,7 @@ npm test
 npm run test:rust
 ```
 
-* **Rust (65 tests):** includes scoring (evidence-only credit, caps, weights, thin postings, years merging), all six connectors parsed from recorded API shapes, discovery filtering and run records, failure reporting, scheduling, and parsing (JSON-LD, pasted text, remote, Wisconsin, pay, employment type), eligibility rules, duplicate detection, status guards, preferences re-check, milestone isolation, dashboard metrics, follow-ups, profile CRUD, document import and extraction, CSV/XLSX export, backup/restore round-trip, rejection of non-backup files, log search, real PDF text extraction, and folder import (dry run writes nothing, statuses and dates, folder-based matching, no matching on document text, certificate parsing, idempotent re-run).
+* **Rust (67 tests):** includes scoring (evidence-only credit, caps, weights, thin postings, years merging), all six connectors parsed from recorded API shapes, discovery filtering and run records, failure reporting, scheduling, and parsing (JSON-LD, pasted text, remote, Wisconsin, pay, employment type), eligibility rules, duplicate detection, status guards, preferences re-check, milestone isolation, dashboard metrics, follow-ups, profile CRUD, document import and extraction, CSV/XLSX export, backup/restore round-trip, rejection of non-backup files, log search, real PDF text extraction, and folder import (dry run writes nothing, statuses and dates, folder-based matching, no matching on document text, certificate parsing, idempotent re-run).
 * **TypeScript (8 tests):** countdown, money and pay formatting, annualisation, list parsing, filtering and sorting.
 
 ## Using the app (first 10 minutes)

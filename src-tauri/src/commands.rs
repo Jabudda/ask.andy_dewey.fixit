@@ -262,6 +262,24 @@ pub async fn run_discovery(state: State<'_, AppState>, source_id: Option<i64>) -
     crate::discovery::run_with_path(&state.data_dir.join(crate::DB_FILE), source_id, "manual").await
 }
 
+// ── credentials (macOS Keychain; values never returned to the UI) ──
+#[tauri::command]
+pub fn credential_status(name: String) -> bool {
+    crate::secrets::has(&name)
+}
+#[tauri::command]
+pub fn save_credential(state: S, name: String, value: String) -> AppResult<()> {
+    crate::secrets::set(&name, &value)?;
+    db::log(&*state.conn()?, "info", "credentials", &format!("{name} API key saved to the macOS Keychain"));
+    Ok(())
+}
+#[tauri::command]
+pub fn delete_credential(state: S, name: String) -> AppResult<()> {
+    crate::secrets::delete(&name)?;
+    db::log(&*state.conn()?, "info", "credentials", &format!("{name} API key removed from the macOS Keychain"));
+    Ok(())
+}
+
 // ── jobs ──
 #[tauri::command]
 pub fn save_job(state: S, draft: JobDraft, force: bool) -> AppResult<SaveJobResult> {

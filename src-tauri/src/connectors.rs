@@ -10,13 +10,15 @@
 //! | himalayas  | `https://himalayas.app/jobs/api/search?q={query}&country=US&limit=20`  |
 //! | jobicy     | `https://jobicy.com/api/v2/remote-jobs?count=50&geo=usa&tag={query}` (credit Jobicy; apply via original URL) |
 //!
+//! | usajobs    | `https://data.usajobs.gov/api/search?Keyword={query}&RemoteIndicator=True&HiringPath=public` — requires the applicant's own API key (Keychain) and registered email |
+//!
 //! No logins, no scraping of rendered pages, no CAPTCHA or bot-protection bypass.
 
 use crate::models::{JobDraft, JobSource};
 use crate::parse;
 use serde_json::Value;
 
-pub const KINDS: [&str; 6] = ["greenhouse", "lever", "ashby", "remotive", "himalayas", "jobicy"];
+pub const KINDS: [&str; 7] = ["greenhouse", "lever", "ashby", "remotive", "himalayas", "jobicy", "usajobs"];
 /// Boards searched by keyword rather than by company.
 pub const KEYWORD_KINDS: [&str; 3] = ["remotive", "himalayas", "jobicy"];
 
@@ -358,6 +360,112 @@ pub fn parse_jobicy(v: &Value) -> Vec<JobDraft> {
         .collect()
 }
 
+/// USAJOBS search results → drafts. Only remote postings open to the public are requested.
+pub fn parse_usajobs(v: &Value) -> Vec<JobDraft> {
+    let items = v.get("SearchResult").and_then(|r| r.get("SearchResultItems")).and_then(Value::as_array);
+    items
+        .into_iter()
+        .flatten()
+        .filter_map(|it| it.get("MatchedObjectDescriptor"))
+        .map(|m| {
+            let det = m.get("UserArea").and_then(|u| u.get("Details"));
+            let dget = |k: &str| det.and_then(|d| d.get(k));
+            let mut d = base("usajobs");
+            d.title = s(m.get("PositionTitle"));
+            let org = s(m.get("OrganizationName"));
+            let dept = s(m.get("DepartmentName"));
+            d.employer = if dept.is_empty() || dept == org { org } else { format!("{org} ({dept})") };
+            d.location_text = s(m.get("PositionLocationDisplay"));
+            let remote = dget("RemoteIndicator").and_then(Value::as_bool).unwrap_or(false);
+            let telework = dget("TeleworkEligible").and_then(Value::as_bool).unwrap_or(false);
+            d.remote_type = if remote { "remote" } else if telework { "hybrid" } else { "onsite" }.into();
+            d.detection_notes.push(format!(
+                "From USAJOBS: remote {}, telework-eligible {}",
+                if remote { "yes" } else { "no" },
+                if telework { "yes" } else { "no" }
+            ));
+            let locs: Vec<String> = m.get("PositionLocation").and_then(Value::as_array).into_iter().flatten().map(|l| s(l.get("LocationName"))).collect();
+            if remote && d.location_text.to_lowercase().contains("anywhere in the u.s") {
+                d.wisconsin_eligibility = "eligible".into();
+                d.detection_notes.push("USAJOBS lists the job as “Anywhere in the U.S. (remote job)”".into());
+            } else if locs.iter().any(|l| l.contains("Wisconsin")) {
+                d.wisconsin_eligibility = "eligible".into();
+                d.detection_notes.push("A USAJOBS duty location is in Wisconsin".into());
+            }
+            if let Some(r) = m.get("PositionRemuneration").and_then(Value::as_array).and_then(|a| a.first()) {
+                d.salary_min = f(r.get("MinimumRange"));
+                d.salary_max = f(r.get("MaximumRange")).or(d.salary_min);
+                d.salary_period = Some(
+                    match s(r.get("RateIntervalCode")).as_str() {
+                        "PH" => "hour",
+                        "PD" => "day",
+                        "PW" => "week",
+                        "PM" => "month",
+                        _ => "year",
+                    }
+                    .into(),
+                );
+                d.detection_notes.push("Pay from USAJOBS' posted salary range".into());
+            }
+            let sched: Vec<String> = m.get("PositionSchedule").and_then(Value::as_array).into_iter().flatten().map(|x| s(x.get("Code"))).collect();
+            d.employment_type = sched
+                .iter()
+                .filter_map(|c| match c.as_str() {
+                    "1" => Some("Full-time"),
+                    "2" => Some("Part-time"),
+                    "4" => Some("Temporary"),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            d.posted_date = date(m.get("PublicationStartDate"));
+            d.valid_through = date(m.get("ApplicationCloseDate"));
+            d.posting_url = http(s(m.get("PositionURI")).replace(":443/", "/"));
+            d.apply_url = m
+                .get("ApplyURI")
+                .and_then(Value::as_array)
+                .and_then(|a| a.first())
+                .map(|x| s(Some(x)).replace(":443/", "/"))
+                .and_then(http)
+                .or_else(|| d.posting_url.clone());
+
+            let mut desc = vec![];
+            let summary = s(dget("JobSummary"));
+            if !summary.is_empty() {
+                desc.push(format!("Summary\n{summary}"));
+            }
+            let duties: Vec<String> = dget("MajorDuties").and_then(Value::as_array).into_iter().flatten().filter_map(|x| x.as_str()).map(|x| format!("• {}", x.trim())).collect();
+            if !duties.is_empty() {
+                desc.push(format!("Duties\n{}", duties.join("\n")));
+            }
+            let keyreq: Vec<String> = dget("KeyRequirements").and_then(Value::as_array).into_iter().flatten().filter_map(|x| x.as_str()).map(|x| format!("• {}", x.trim())).collect();
+            let quals = s(m.get("QualificationSummary"));
+            if !keyreq.is_empty() || !quals.is_empty() {
+                let mut q = keyreq;
+                // Federal qualification text is one long paragraph; split into sentences for checking.
+                q.extend(quals.split(". ").map(str::trim).filter(|x| x.split_whitespace().count() >= 4).map(|x| format!("• {}", x.trim_end_matches('.'))));
+                desc.push(format!("Qualifications\n{}", q.join("\n")));
+            }
+            let edu = s(dget("Education"));
+            if !edu.is_empty() {
+                desc.push(format!("Education\n{edu}"));
+            }
+            let paths: Vec<String> = dget("HiringPathDisplay").and_then(Value::as_array).into_iter().flatten().filter_map(|x| x.as_str().map(String::from)).collect();
+            let grade = format!("{}-{}–{}", m.get("JobGrade").and_then(Value::as_array).and_then(|a| a.first()).map(|g| s(g.get("Code"))).unwrap_or_default(), s(dget("LowGrade")), s(dget("HighGrade")));
+            desc.push(format!(
+                "Federal details\nGrade: {grade}\nSecurity clearance: {}\nWho may apply: {}",
+                Some(s(dget("SecurityClearance"))).filter(|x| !x.is_empty()).unwrap_or_else(|| "not stated".into()),
+                if paths.is_empty() { "see posting".into() } else { paths.join(", ") }
+            ));
+            d.description = desc.join("\n\n");
+            d.detection_notes.push("Federal postings require applying through USAJOBS; specialized-experience and grade requirements need your judgment".into());
+            parse::enrich(&mut d);
+            d
+        })
+        .filter(|d| !d.title.is_empty())
+        .collect()
+}
+
 /// Recognise a careers-page URL and return the matching connector.
 pub fn detect_source(url: &str) -> Option<(String, String)> {
     let u = url::Url::parse(url.trim()).ok()?;
@@ -394,6 +502,10 @@ pub fn endpoint(src: &JobSource, query: Option<&str>) -> Result<String, String> 
         "remotive" => Ok("https://remotive.com/api/remote-jobs?limit=100".to_string()),
         "himalayas" => Ok(format!("https://himalayas.app/jobs/api/search?q={}&country=US&limit=20", enc(query.unwrap_or("")))),
         "jobicy" => Ok(format!("https://jobicy.com/api/v2/remote-jobs?count=50&geo=usa&tag={}", enc(query.unwrap_or("")))),
+        "usajobs" => Ok(format!(
+            "https://data.usajobs.gov/api/search?Keyword={}&RemoteIndicator=True&HiringPath=public&ResultsPerPage=50&DatePosted=30",
+            enc(query.unwrap_or(""))
+        )),
         k => Err(format!("Unknown source type “{k}”")),
     }
 }
@@ -407,7 +519,18 @@ pub fn client() -> reqwest::Client {
 }
 
 async fn get_json(client: &reqwest::Client, url: &str) -> Result<Value, String> {
-    let resp = client.get(url).send().await.map_err(|e| format!("Network error: {e}"))?;
+    get_json_with(client, url, &[]).await
+}
+
+async fn get_json_with(client: &reqwest::Client, url: &str, headers: &[(&str, String)]) -> Result<Value, String> {
+    let mut req = client.get(url);
+    for (k, v) in headers {
+        req = req.header(*k, v);
+    }
+    let resp = req.send().await.map_err(|e| format!("Network error: {e}"))?;
+    if resp.status().as_u16() == 401 {
+        return Err("The API key or registered email was rejected (HTTP 401)".into());
+    }
     let st = resp.status();
     if st.as_u16() == 404 {
         return Err("Board not found (HTTP 404) — check the company's board name".into());
@@ -428,6 +551,35 @@ pub async fn fetch(client: &reqwest::Client, src: &JobSource, queries: &[String]
         "lever" => Ok(parse_lever(&get_json(client, &endpoint(src, None)?).await?, src)),
         "ashby" => Ok(parse_ashby(&get_json(client, &endpoint(src, None)?).await?, src)),
         "remotive" => Ok(parse_remotive(&get_json(client, &endpoint(src, None)?).await?)),
+        "usajobs" => {
+            let key = crate::secrets::get("usajobs")
+                .map_err(|e| e.to_string())?
+                .ok_or("No USAJOBS API key saved — add it under Job search → USAJOBS")?;
+            let email = src.identifier.trim().to_string();
+            let headers = [("Host", "data.usajobs.gov".to_string()), ("User-Agent", email), ("Authorization-Key", key)];
+            let mut out: Vec<JobDraft> = vec![];
+            let mut errors = vec![];
+            for (i, q) in queries.iter().filter(|q| !q.trim().is_empty()).take(10).enumerate() {
+                if i > 0 {
+                    tokio_sleep(1000).await;
+                }
+                match get_json_with(client, &endpoint(src, Some(q))?, &headers).await {
+                    Ok(v) => {
+                        for d in parse_usajobs(&v) {
+                            if !out.iter().any(|o| o.posting_url == d.posting_url) {
+                                out.push(d);
+                            }
+                        }
+                    }
+                    Err(e) => errors.push(format!("“{q}”: {e}")),
+                }
+            }
+            if out.is_empty() && !errors.is_empty() {
+                Err(errors.join("; "))
+            } else {
+                Ok(out)
+            }
+        }
         "himalayas" | "jobicy" => {
             let mut out: Vec<JobDraft> = vec![];
             let mut errors = vec![];
@@ -563,6 +715,37 @@ mod tests {
         assert_eq!(r[0].apply_url.as_deref(), Some("https://jobicy.com/jobs/158965"), "apply via the original Jobicy URL");
         assert_eq!(r[0].employment_type, "Full-time");
         assert!(r[0].detection_notes.iter().any(|n| n.contains("via Jobicy")));
+    }
+
+    #[test]
+    fn usajobs() {
+        let v = json!({"SearchResult": {"SearchResultItems": [{"MatchedObjectDescriptor": {
+            "PositionTitle": "Management and Program Analyst", "OrganizationName": "Veterans Health Administration",
+            "DepartmentName": "Department of Veterans Affairs", "PositionLocationDisplay": "Anywhere in the U.S. (remote job)",
+            "PositionLocation": [{"LocationName": "Anywhere in the U.S."}],
+            "PositionRemuneration": [{"MinimumRange": "74678", "MaximumRange": "121371", "RateIntervalCode": "PA"}],
+            "PublicationStartDate": "2026-11-02T13:58:37.1470", "ApplicationCloseDate": "2026-11-20T23:59:59.9970",
+            "PositionURI": "https://www.usajobs.gov:443/job/891264600", "ApplyURI": ["https://www.usajobs.gov:443/job/891264600"],
+            "PositionSchedule": [{"Name": "", "Code": "1"}], "JobGrade": [{"Code": "GS"}],
+            "QualificationSummary": "You must have one year of specialized experience equivalent to GS-9. Experience with Excel and SharePoint reporting is required.",
+            "UserArea": {"Details": {"RemoteIndicator": true, "TeleworkEligible": false, "JobSummary": "Serve as analyst.",
+                "MajorDuties": ["Build dashboards in Smartsheet"], "KeyRequirements": ["U.S. Citizenship"], "LowGrade": "11", "HighGrade": "12",
+                "SecurityClearance": "Not Required", "HiringPathDisplay": ["The public"]}}
+        }}]}});
+        let d = &parse_usajobs(&v)[0];
+        assert_eq!(d.employer, "Veterans Health Administration (Department of Veterans Affairs)");
+        assert_eq!(d.remote_type, "remote");
+        assert_eq!(d.wisconsin_eligibility, "eligible");
+        assert_eq!(d.salary_min, Some(74678.0));
+        assert_eq!(d.salary_period.as_deref(), Some("year"));
+        assert_eq!(d.employment_type, "Full-time");
+        assert_eq!(d.posting_url.as_deref(), Some("https://www.usajobs.gov/job/891264600"));
+        assert_eq!(d.valid_through.as_deref(), Some("2026-11-20"));
+        assert!(d.description.contains("Qualifications\n• U.S. Citizenship\n• You must have one year of specialized experience"));
+        assert!(d.description.contains("Grade: GS-11–12"));
+        let (req, _) = crate::scoring::requirement_lines(&d.description);
+        assert!(req.iter().any(|l| l.contains("Excel and SharePoint")), "{req:?}");
+        assert!(endpoint(&src("usajobs", "me@example.com", ""), Some("program analyst")).unwrap().contains("HiringPath=public"));
     }
 
     #[test]

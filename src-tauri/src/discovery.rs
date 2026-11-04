@@ -53,10 +53,14 @@ pub fn list_sources(c: &Connection) -> AppResult<Vec<JobSource>> {
 
 pub fn save_source(c: &Connection, s: &JobSource) -> AppResult<i64> {
     if !connectors::KINDS.contains(&s.kind.as_str()) {
-        return Err(AppError::invalid("Source type must be Greenhouse, Lever, Ashby, Remotive, Himalayas or Jobicy"));
+        return Err(AppError::invalid("Source type must be Greenhouse, Lever, Ashby, Remotive, Himalayas, Jobicy or USAJOBS"));
     }
     let ident = s.identifier.trim().trim_matches('/').to_lowercase();
-    if !connectors::KEYWORD_KINDS.contains(&s.kind.as_str()) && (ident.is_empty() || !ident.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' || ch == '.')) {
+    if s.kind == "usajobs" {
+        if !(ident.contains('@') && ident.contains('.') && !ident.contains(char::is_whitespace)) {
+            return Err(AppError::invalid("USAJOBS needs the email address you registered your API key with"));
+        }
+    } else if !connectors::KEYWORD_KINDS.contains(&s.kind.as_str()) && (ident.is_empty() || !ident.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' || ch == '.')) {
         return Err(AppError::invalid("Enter the company's board name, e.g. “smartsheet” from boards.greenhouse.io/smartsheet"));
     }
     match s.id {
@@ -367,6 +371,8 @@ mod tests {
         assert_eq!(list_sources(&c).unwrap().iter().filter(|s| connectors::KEYWORD_KINDS.contains(&s.kind.as_str())).count(), 3, "keyword boards are seeded");
         assert!(save_source(&c, &JobSource { kind: "greenhouse".into(), identifier: "bad name!".into(), ..Default::default() }).is_err());
         assert!(save_source(&c, &JobSource { kind: "monster".into(), identifier: "x".into(), ..Default::default() }).is_err());
+        assert!(save_source(&c, &JobSource { kind: "usajobs".into(), identifier: "not-an-email".into(), ..Default::default() }).is_err());
+        assert!(save_source(&c, &JobSource { kind: "usajobs".into(), identifier: "Me@Example.com".into(), enabled: true, ..Default::default() }).is_ok());
         assert_eq!(interval_hours(&c).unwrap(), 12);
         let now = Local::now().naive_local();
         assert!(due(&c, now).unwrap());

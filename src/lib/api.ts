@@ -59,6 +59,9 @@ export const api = {
   listSearchRuns: () => call<SearchRun[]>("list_search_runs"),
   getSearchSettings: () => call<SearchSettings>("get_search_settings"),
   setSearchInterval: (hours: number) => call<void>("set_search_interval", { hours }),
+  credentialStatus: (name: string) => call<boolean>("credential_status", { name }),
+  saveCredential: (name: string, value: string) => call<void>("save_credential", { name, value }),
+  deleteCredential: (name: string) => call<void>("delete_credential", { name }),
   runDiscovery: (sourceId?: number) => call<RunSummary[]>("run_discovery", { sourceId: sourceId ?? null }),
 
   exportJobs: (path: string, format: "csv" | "xlsx") => call<number>("export_jobs", { path, format }),
