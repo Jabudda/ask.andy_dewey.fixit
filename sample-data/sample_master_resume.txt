@@ -1,0 +1,15 @@
+SAMPLE DATA — fictional resume used only to demonstrate import. Replace with your own.
+
+Jordan Sample
+Milwaukee, WI · jordan.sample@example.com
+
+PROFESSIONAL EXPERIENCE
+Operations Coordinator — Example County Emergency Management (SAMPLE), 2019–Present
+• Coordinated crisis management operations and situational reporting for incident response teams
+• Built Smartsheet trackers, dashboards and automations used by cross-agency stakeholders
+• Automated recurring data cleanup in Excel with Office Scripts
+• Led user acceptance testing (UAT) for a SharePoint and Microsoft Teams rollout
+• Wrote documentation and standard operating procedures; troubleshot operational issues
+
+SKILLS
+Smartsheet · Excel · Office Scripts · SharePoint · Microsoft Teams · Reporting · Documentation

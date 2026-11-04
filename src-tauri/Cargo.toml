@@ -1,0 +1,38 @@
+[package]
+name = "project-next-chapter"
+version = "0.1.0"
+description = "Local-first job search and application tracker"
+edition = "2021"
+rust-version = "1.80"
+
+[lib]
+name = "next_chapter_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.32", features = ["bundled", "backup"] }
+chrono = { version = "0.4", features = ["serde"] }
+regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+csv = "1"
+rust_xlsxwriter = "0.79"
+sha2 = "0.10"
+url = "2"
+thiserror = "1"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true

@@ -1,0 +1,27 @@
+# Build output
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+
+# PRIVATE APPLICANT DATA — never commit
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+documents/
+exports/
+backups/
+*.docx
+*.xlsx
+*.csv
+!sample-data/**
+.env
+.env.*
+*.pem
+*.key
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
