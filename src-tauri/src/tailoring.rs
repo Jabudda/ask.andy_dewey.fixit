@@ -164,7 +164,8 @@ pub fn system_prompt(kind: &str, style_notes: &str) -> String {
          5. Do not mention requirements the candidate lacks, and never imply they have them.\n\
          6. Avoid stock phrases, including: {}.\n\
          7. Write in plain, specific language. No exclamation marks.\n\
-         8. Never use em dashes (—). Use commas, colons, semicolons, parentheses or separate sentences instead.\n",
+         8. Never use em dashes (—). Use commas, colons, semicolons, parentheses or separate sentences instead.\n\
+         9. When you name a skill or tool, include in `sources` the matching \"Verified skill\" fact (K…) as well as the bullet that shows it.\n",
         BANNED_PHRASES.join("; ")
     );
     if kind == "resume" {
@@ -271,7 +272,7 @@ pub fn check_line(loc: &str, line: &Line, facts: &[Fact], profile_evidence: &str
         }
         if !has_evidence(profile_evidence, term) {
             push("blocker", format!("Mentions “{term}”, which isn't in your verified profile"));
-        } else if !cited.is_empty() && !has_evidence(&lower_cited, term) {
+        } else if !cited.is_empty() && !has_evidence(&lower_cited, term) && !is_verified_skill(facts, term) && !stem_supported(&lower_cited, term) {
             push("review", format!("“{term}” is in your profile but not in the cited source — check the citation"));
         }
     }
@@ -281,6 +282,22 @@ pub fn check_line(loc: &str, line: &Line, facts: &[Fact], profile_evidence: &str
             push("review", format!("Stock phrase “{p}” — consider rewording"));
         }
     }
+}
+
+/// The term is one of the candidate's verified skills (a true claim even if a bullet was cited instead).
+fn is_verified_skill(facts: &[Fact], term: &str) -> bool {
+    let t = term.to_lowercase();
+    facts.iter().any(|f| f.text.strip_prefix("Verified skill: ").map(|n| n.to_lowercase().split(" (").next() == Some(t.as_str())).unwrap_or(false))
+}
+
+/// The cited text supports the term through a word form ("validate" for "Data Validation").
+fn stem_supported(cited_lower: &str, term: &str) -> bool {
+    let words: Vec<String> = term.to_lowercase().split_whitespace().map(String::from).collect();
+    !words.is_empty()
+        && words.iter().all(|w| {
+            let stem: String = w.chars().take(5.max(w.chars().count().saturating_sub(3))).collect();
+            stem.len() >= 3 && cited_lower.contains(&stem)
+        })
 }
 
 pub fn check_resume(c: &ResumeContent, facts: &[Fact], skills: &[Skill], profile_evidence: &str, job: &Job, pos: &[PositionRef]) -> Vec<Finding> {
@@ -588,6 +605,13 @@ pub(crate) mod tests {
         let mut out = vec![];
         check_line("u2", &Line { text: "Built Tableau reports".into(), sources: vec![USER_SOURCE.into()] }, &f, &ev, "", &mut out);
         assert!(out.iter().any(|x| x.severity == "blocker" && x.message.contains("Tableau")));
+
+        // A verified skill named in a line that cites a related bullet is not flagged
+        let mut out = vec![];
+        check_line("s1", &Line { text: "Builds Excel trackers in Smartsheet".into(), sources: vec!["E0.0".into()] }, &f, &ev, "", &mut out);
+        assert!(out.is_empty(), "{out:?}");
+        assert!(stem_supported("clean, standardize, validate, and reconcile data", "Data Validation"));
+        assert!(!stem_supported("built dashboards", "Data Validation"));
 
         let mut out = vec![];
         check_line("b5", &Line { text: "I am passionate about dashboards in Smartsheet".into(), sources: vec!["E0.1".into()] }, &f, &ev, "", &mut out);
