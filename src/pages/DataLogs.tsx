@@ -3,6 +3,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { api } from "../lib/api";
 import type { AppInfo, LogEntry } from "../lib/types";
 import { Card, confirmAction, useToast } from "../components/ui";
+import { FolderImport } from "../components/FolderImport";
 
 const stamp = () => new Date().toISOString().slice(0, 10);
 
@@ -67,6 +68,8 @@ export function DataLogs() {
           <p className="muted">Everything is stored locally on this Mac. Nothing is uploaded.</p>
         </div>
       </div>
+
+      <FolderImport onImported={() => loadLogs()} />
 
       <div className="two-col">
         <Card title="Export application history">

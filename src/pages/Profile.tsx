@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { api } from "../lib/api";
 import type { Accomplishment, Certification, DocumentRec, Experience, ProfileBundle, Skill } from "../lib/types";
-import { shortDate } from "../lib/format";
+import { docKindLabel, shortDate } from "../lib/format";
 import { Card, Empty, Field, confirmAction, useToast } from "../components/ui";
 
 const DOC_KINDS: [string, string][] = [
@@ -52,7 +52,7 @@ export function Profile() {
       <Card title="Documents" actions={
         <div className="btn-row">{DOC_KINDS.map(([k, l]) => <button key={k} className={`btn small ${k === "master_resume" ? "primary" : ""}`} onClick={() => upload(k)}>Upload {l.toLowerCase()}</button>)}</div>
       }>
-        <p className="muted small">.docx, .txt and .md are read in full. PDFs are stored but not yet read (Phase 3) — upload a .docx copy too.</p>
+        <p className="muted small">.docx, .pdf, .txt and .md are read in full. Images, spreadsheets and videos are stored without text. Documents linked to a job appear on that job's page.</p>
         {p.documents.length === 0 ? <Empty>No documents yet. Start with your master resume.</Empty> : (
           <table className="table">
             <thead><tr><th>File</th><th>Type</th><th className="num">Version</th><th>Added</th><th className="num">Text</th><th /></tr></thead>
@@ -60,11 +60,12 @@ export function Profile() {
               {p.documents.map((d) => (
                 <tr key={d.id}>
                   <td>{d.fileName}{d.kind === "master_resume" && masters[0]?.id === d.id && <span className="tag">current master</span>}</td>
-                  <td>{DOC_KINDS.find(([k]) => k === d.kind)?.[1] ?? d.kind}</td>
+                  <td>{docKindLabel(d.kind)}</td>
                   <td className="num">v{d.version}</td>
                   <td>{shortDate(d.createdAt)}</td>
                   <td className="num">{d.extractedText ? `${d.extractedText.length.toLocaleString()} chars` : "—"}</td>
                   <td className="nowrap">
+                    <button className="link" onClick={() => api.openDocument(d.id).catch(fail)}>Open</button>{" "}
                     {d.extractedText && <button className="link" onClick={() => setViewDoc(d)}>View text</button>}{" "}
                     <button className="link danger" onClick={async () => { if (await confirmAction(`Remove ${d.fileName} from the app?`, "Remove")) api.deleteDocument(d.id).then(load).catch(fail); }}>Remove</button>
                   </td>

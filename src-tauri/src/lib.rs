@@ -1,3 +1,4 @@
+pub mod command_center;
 pub mod commands;
 pub mod db;
 pub mod documents;
@@ -44,6 +45,8 @@ pub fn run() {
             commands::delete_profile_item,
             commands::import_document,
             commands::delete_document,
+            commands::import_command_center,
+            commands::open_document,
             commands::parse_pasted_job,
             commands::fetch_job_from_url,
             commands::save_job,

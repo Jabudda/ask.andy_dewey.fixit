@@ -169,5 +169,15 @@ export interface DashboardStats {
   milestoneDate: string;
 }
 
+export interface ImportJobLine {
+  jobId: number; employer: string; title: string; status: string; applied: string | null; salary: string;
+  action: string; posting: string | null; linkedDocuments: number; flags: string[];
+}
+export interface ImportDocLine { file: string; kind: string; job: string | null; action: string; textChars: number; note: string | null }
+export interface ImportReport {
+  dryRun: boolean; root: string; trackerFile: string | null; jobs: ImportJobLine[]; documents: ImportDocLine[];
+  certifications: string[]; profileUpdates: string[]; suggestedSkills: string[]; warnings: string[]; skipped: string[];
+}
+
 export interface LogEntry { id: number; ts: string; level: string; source: string; message: string }
 export interface AppInfo { version: string; dataDir: string; databasePath: string; documentsDir: string }

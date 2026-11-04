@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { annualize, daysUntil, draftOf, emptyDraft, filterJobs, money, parseList, pct, salaryText, sortJobs } from "./format";
+import { annualize, daysUntil, docKindLabel, draftOf, emptyDraft, filterJobs, money, parseList, pct, salaryText, sortJobs } from "./format";
 import type { Job } from "./types";
 
 function job(over: Partial<Job>): Job {
@@ -37,6 +37,10 @@ describe("formatting", () => {
     expect(annualize(25, "hour")).toBe(52000);
     expect(annualize(5000, "month")).toBe(60000);
     expect(annualize(70000, null)).toBe(70000);
+  });
+  it("labels document kinds", () => {
+    expect(docKindLabel("sent_cover_letter")).toBe("Cover letter sent");
+    expect(docKindLabel("something_new")).toBe("something new");
   });
   it("parses lists without duplicates", () => {
     expect(parseList("Excel, excel\nSmartsheet,, \n SharePoint")).toEqual(["Excel", "Smartsheet", "SharePoint"]);

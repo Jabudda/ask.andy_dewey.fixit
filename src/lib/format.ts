@@ -104,6 +104,25 @@ export function sortJobs(jobs: Job[], key: SortKey, dir: SortDir): Job[] {
   });
 }
 
+const DOC_KINDS: Record<string, string> = {
+  master_resume: "Master resume",
+  career_document: "Career document",
+  certification: "Certificate",
+  accomplishment: "Accomplishment example",
+  portfolio: "Portfolio sample",
+  performance_review: "Performance review",
+  sent_resume: "Resume sent",
+  sent_cover_letter: "Cover letter sent",
+  application_package: "Application package",
+  application_confirmation: "Submission confirmation",
+  job_posting: "Saved job posting",
+  generated_resume: "Generated resume",
+  generated_cover_letter: "Generated cover letter",
+};
+export function docKindLabel(kind: string): string {
+  return DOC_KINDS[kind] ?? kind.replace(/_/g, " ");
+}
+
 /** Split a textarea/comma list into trimmed, unique, non-empty items. */
 export function parseList(s: string): string[] {
   const seen = new Set<string>();

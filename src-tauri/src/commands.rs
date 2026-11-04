@@ -183,6 +183,22 @@ async fn fetch_html(url: &str) -> AppResult<String> {
     Ok(body.chars().take(3_000_000).collect())
 }
 
+// ── folder import ──
+#[tauri::command]
+pub async fn import_command_center(state: State<'_, AppState>, path: String, dry_run: bool) -> AppResult<crate::command_center::ImportReport> {
+    let c = state.conn()?;
+    crate::command_center::run(&c, &state.documents_dir(), Path::new(&path), dry_run)
+        .inspect_err(|e| db::log(&c, "error", "import", &format!("Folder import failed: {e}")))
+}
+
+/// Opens a stored document with its default macOS app (only files this app knows about).
+#[tauri::command]
+pub fn open_document(state: S, id: i64) -> AppResult<()> {
+    let d = db::get_document(&*state.conn()?, id)?;
+    std::process::Command::new("open").arg(&d.stored_path).spawn().map_err(AppError::other)?;
+    Ok(())
+}
+
 // ── jobs ──
 #[tauri::command]
 pub fn save_job(state: S, draft: JobDraft, force: bool) -> AppResult<SaveJobResult> {

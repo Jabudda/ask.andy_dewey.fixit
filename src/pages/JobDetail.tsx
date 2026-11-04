@@ -3,7 +3,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { api } from "../lib/api";
 import type { Contact, Interview, JobDetail as Detail, JobDraft, Reminder } from "../lib/types";
 import { STATUSES } from "../lib/types";
-import { draftOf, salaryText, shortDate } from "../lib/format";
+import { docKindLabel, draftOf, salaryText, shortDate } from "../lib/format";
 import { JobForm } from "../components/JobForm";
 import { Card, EligibilityBadge, Empty, Field, RemoteBadge, SalaryBadge, StatusBadge, confirmAction, useToast } from "../components/ui";
 import type { Nav } from "../App";
@@ -94,6 +94,14 @@ export function JobDetail({ id, go }: { id: number; go: Nav }) {
           <StatusPanel detail={d} onChanged={load} />
           <Card title="Notes" actions={<button className="btn small" disabled={notes === j.notes} onClick={() => api.updateNotes(j.id, notes).then(() => { notify("ok", "Notes saved"); load(); }).catch(fail)}>Save</button>}>
             <textarea rows={5} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Research, impressions, salary conversations…" />
+          </Card>
+          <Card title={`Documents (${d.documents.length})`}>
+            {d.documents.length === 0 ? <Empty>No documents linked to this job yet.</Empty> : d.documents.map((doc) => (
+              <div key={doc.id} className="list-row">
+                <div><strong>{docKindLabel(doc.kind)}</strong><div className="muted small">{doc.fileName}</div></div>
+                <button className="link" onClick={() => api.openDocument(doc.id).catch(fail)}>Open</button>
+              </div>
+            ))}
           </Card>
           <Interviews jobId={j.id} items={d.interviews} onChanged={load} />
           <Reminders jobId={j.id} items={d.reminders} onChanged={load} />

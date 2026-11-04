@@ -220,3 +220,4 @@ button.chip.add { cursor: pointer; color: var(--accent); font: inherit; font-siz
 .toast-ok { border-left: 3px solid var(--good); }
 .toast-err { border-left: 3px solid var(--bad); }
 .toast-info { border-left: 3px solid var(--info); }
+.alert-ok { background: var(--good-bg); border: 1px solid rgba(74,222,128,.35); }

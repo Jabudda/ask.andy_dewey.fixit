@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   Accomplishment, AppInfo, Certification, Contact, DashboardStats, DocumentImportResult, Experience, Interview, Job,
-  JobDetail, JobDraft, LogEntry, Preferences, ProfileBasics, ProfileBundle, Reminder, SaveJobResult, Skill, StatusChange,
+  ImportReport, JobDetail, JobDraft, LogEntry, Preferences, ProfileBasics, ProfileBundle, Reminder, SaveJobResult, Skill, StatusChange,
 } from "./types";
 
 /** True when running inside the Tauri shell (false in a plain browser tab). */
@@ -31,6 +31,8 @@ export const api = {
     call<void>("delete_profile_item", { section, id }),
   importDocument: (path: string, kind: string) => call<DocumentImportResult>("import_document", { path, kind }),
   deleteDocument: (id: number) => call<void>("delete_document", { id }),
+  openDocument: (id: number) => call<void>("open_document", { id }),
+  importCommandCenter: (path: string, dryRun: boolean) => call<ImportReport>("import_command_center", { path, dryRun }),
 
   parsePastedJob: (text: string) => call<JobDraft>("parse_pasted_job", { text }),
   fetchJobFromUrl: (url: string) => call<JobDraft>("fetch_job_from_url", { url }),
