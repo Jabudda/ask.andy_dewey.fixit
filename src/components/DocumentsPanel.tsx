@@ -169,6 +169,20 @@ function Editor({ kind, doc, profile, onSaved }: { kind: Kind; doc: DocumentRec;
             }} />}
           </div>
         ))}
+        {(r.projects ?? []).length > 0 && <strong className="small">Selected projects</strong>}
+        {(r.projects ?? []).map((pr, i) => {
+          const a = profile.accomplishments[Number(pr.accomplishment_id.slice(1))];
+          return (
+            <Field key={pr.accomplishment_id + i} label={a ? a.title : pr.accomplishment_id} hint="Clear the text to drop this project">
+              <textarea rows={2} value={pr.text} onChange={(e) => {
+                const projects = [...(r.projects ?? [])];
+                const merged = mergeLines([{ text: pr.text, sources: pr.sources }], [e.target.value])[0];
+                projects[i] = { ...pr, text: e.target.value, sources: merged ? merged.sources : pr.sources };
+                setC({ ...r, projects: projects });
+              }} />
+            </Field>
+          );
+        })}
         <p className="muted small">One bullet per line. Lines you add yourself are marked “written by you” for a final check.</p>
         <button className="btn small primary" onClick={save}>Save as new version</button>
       </div>

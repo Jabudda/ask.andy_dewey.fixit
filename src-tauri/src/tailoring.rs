@@ -102,7 +102,17 @@ pub struct ResumeContent {
     pub summary: Line,
     pub skills: Vec<String>,
     pub positions: Vec<PositionContent>,
+    /// 0–3 accomplishments shown under "Selected Projects"; the title comes from the profile.
+    pub projects: Vec<ProjectContent>,
     pub notes_for_candidate: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
+pub struct ProjectContent {
+    pub accomplishment_id: String,
+    pub text: String,
+    pub sources: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -131,8 +141,13 @@ pub fn resume_schema() -> Value {
             "include": {"type": "boolean"},
             "bullets": {"type": "array", "items": line_schema()}
         }, "required": ["position_id", "include", "bullets"], "additionalProperties": false}},
+        "projects": {"type": "array", "items": {"type": "object", "properties": {
+            "accomplishment_id": {"type": "string"},
+            "text": {"type": "string"},
+            "sources": {"type": "array", "items": {"type": "string"}}
+        }, "required": ["accomplishment_id", "text", "sources"], "additionalProperties": false}},
         "notes_for_candidate": {"type": "string"}
-    }, "required": ["headline", "summary", "skills", "positions", "notes_for_candidate"], "additionalProperties": false})
+    }, "required": ["headline", "summary", "skills", "positions", "projects", "notes_for_candidate"], "additionalProperties": false})
 }
 
 pub fn cover_letter_schema() -> Value {
@@ -165,7 +180,8 @@ pub fn system_prompt(kind: &str, style_notes: &str) -> String {
          6. Avoid stock phrases, including: {}.\n\
          7. Write in plain, specific language. No exclamation marks.\n\
          8. Never use em dashes (—). Use commas, colons, semicolons, parentheses or separate sentences instead.\n\
-         9. When you name a skill or tool, include in `sources` the matching \"Verified skill\" fact (K…) as well as the bullet that shows it.\n",
+         9. When you name a skill or tool, include in `sources` the matching \"Verified skill\" fact (K…) as well as the bullet that shows it.\n\
+         10. Keep quantities and actions exactly as the facts state them: one workflow stays one workflow (never \"workflows\"), and a thing the candidate designed or built is described as designed or built (do not turn it into an ongoing \"automate\" or \"deliver\").\n",
         BANNED_PHRASES.join("; ")
     );
     if kind == "resume" {
@@ -175,6 +191,7 @@ pub fn system_prompt(kind: &str, style_notes: &str) -> String {
              - `summary`: 2–3 sentences.\n\
              - `skills`: 8–14 entries chosen ONLY from the facts labelled \"Verified skill\", copied exactly, most relevant first.\n\
              - `positions`: one entry for EVERY position ID given, in the same order. Set include=true for positions whose work supports this application; give recent relevant roles 3–6 bullets and older roles 0–2. Set include=false (no bullets) for roles that add nothing; they are still listed by title, employer and dates.\n\
+             - `projects`: 0–3 entries chosen from the facts labelled \"Accomplishment\" that best support this application (most relevant first). Put its fact ID (e.g. \"A2\") in `accomplishment_id`, one sentence under 35 words in `text`, and cite it in `sources`. The app prints the project's title itself. Use an empty list if none fit.\n\
              - Bullets start with a strong past-tense verb (present tense for the current role), one idea each, under 30 words, ATS-friendly plain text.\n\
              - `notes_for_candidate`: 1–3 short sentences on what you emphasised and anything they should check.\n"
         )
@@ -315,6 +332,7 @@ pub fn check_resume(c: &ResumeContent, facts: &[Fact], skills: &[Skill], profile
             out.push(Finding { severity: "blocker".into(), location: "Skills".into(), text: s.clone(), message: "Not one of your verified skills".into() });
         }
     }
+    check_projects(c, facts, profile_evidence, &extra, &mut out);
     for p in &c.positions {
         let label = pos.iter().find(|x| x.id == p.position_id).map(|x| format!("{} — {}", x.exp.title, x.exp.employer));
         let Some(label) = label else {
@@ -326,6 +344,21 @@ pub fn check_resume(c: &ResumeContent, facts: &[Fact], skills: &[Skill], profile
         }
     }
     out
+}
+
+fn check_projects(c: &ResumeContent, facts: &[Fact], profile_evidence: &str, extra: &str, out: &mut Vec<Finding>) {
+    for (i, pr) in c.projects.iter().enumerate() {
+        let id = pr.accomplishment_id.trim();
+        if !id.starts_with('A') || !facts.iter().any(|f| f.id == id) {
+            out.push(Finding { severity: "blocker".into(), location: "Selected Projects".into(), text: id.to_string(), message: "Unknown project — it will be left out".into() });
+            continue;
+        }
+        let mut sources = pr.sources.clone();
+        if !sources.iter().any(|s| s == id) && !sources.iter().any(|s| s == USER_SOURCE) {
+            sources.push(id.to_string());
+        }
+        check_line(&format!("Project {}", i + 1), &Line { text: pr.text.clone(), sources }, facts, profile_evidence, extra, out);
+    }
 }
 
 pub fn check_cover_letter(c: &CoverLetterContent, facts: &[Fact], profile_evidence: &str, job: &Job) -> Vec<Finding> {
@@ -349,6 +382,7 @@ pub enum Block {
     Role { title: String, meta: String },
     Para(String),
     Bullet(String),
+    Project { title: String, text: String },
     Gap,
 }
 
@@ -388,6 +422,22 @@ pub fn render_resume(p: &ProfileBundle, c: &ResumeContent) -> Vec<Block> {
                     b.push(Block::Bullet(bl.text.trim().to_string()));
                 }
             }
+        }
+    }
+    let projects: Vec<(String, String)> = c
+        .projects
+        .iter()
+        .filter(|x| !x.text.trim().is_empty())
+        .filter_map(|x| {
+            let i: usize = x.accomplishment_id.trim().strip_prefix('A')?.parse().ok()?;
+            p.accomplishments.get(i).map(|a| (a.title.clone(), x.text.trim().to_string()))
+        })
+        .take(3)
+        .collect();
+    if !projects.is_empty() {
+        b.push(Block::Heading("Selected Projects".into()));
+        for (title, text) in projects {
+            b.push(Block::Project { title, text });
         }
     }
     if !other.is_empty() {
@@ -467,6 +517,9 @@ pub fn clean_dashes(s: &str) -> String {
 pub fn clean_resume(mut r: ResumeContent) -> ResumeContent {
     r.headline = clean_dashes(&r.headline);
     r.summary.text = clean_dashes(&r.summary.text);
+    for x in r.projects.iter_mut() {
+        x.text = clean_dashes(&x.text);
+    }
     for p in r.positions.iter_mut() {
         for b in p.bullets.iter_mut() {
             b.text = clean_dashes(&b.text);
@@ -492,6 +545,7 @@ pub fn plain_text(blocks: &[Block]) -> String {
             Block::Heading(t) => s.push_str(&format!("\n{}\n", t.to_uppercase())),
             Block::Role { title, meta } => s.push_str(&format!("\n{title}\n{meta}\n")),
             Block::Bullet(t) => s.push_str(&format!("• {t}\n")),
+            Block::Project { title, text } => s.push_str(&format!("{title}: {text}\n")),
             Block::Gap => s.push('\n'),
         }
     }
@@ -529,7 +583,7 @@ pub(crate) mod tests {
             education: vec![Education { institution: "State University".into(), degree: "Bachelor's degree".into(), field: "Public Relations".into(), minor: "Marketing".into(), ..Default::default() }],
             skills: vec![Skill { name: "Smartsheet".into(), ..Default::default() }, Skill { name: "Excel".into(), ..Default::default() }],
             certifications: vec![Certification { name: "Smartsheet Builder".into(), issuer: "Smartsheet University".into(), date_earned: "2025-04".into(), ..Default::default() }],
-            accomplishments: vec![],
+            accomplishments: vec![Accomplishment { title: "Call center template".into(), description: "Created a Microsoft Word call center template with escalation triggers and call flows".into(), ..Default::default() }],
             documents: vec![],
         }
     }
@@ -624,6 +678,7 @@ pub(crate) mod tests {
             summary: Line { text: "Operations specialist with 6+ years in crisis management operations.".into(), sources: vec!["S1".into()] },
             skills: vec!["Excel".into(), "Python".into()],
             positions: vec![PositionContent { position_id: "P7".into(), include: true, bullets: vec![] }],
+            projects: vec![],
             notes_for_candidate: String::new(),
         };
         let findings = check_resume(&r, &f, &p.skills, &ev, &j, &positions(&p));
@@ -643,12 +698,21 @@ pub(crate) mod tests {
                 PositionContent { position_id: "P0".into(), include: true, bullets: vec![Line { text: "Built Smartsheet dashboards".into(), sources: vec!["E0.1".into()] }] },
                 PositionContent { position_id: "P1".into(), include: false, bullets: vec![] },
             ],
+            projects: vec![
+                ProjectContent { accomplishment_id: "A0".into(), text: "Word call center template with escalation triggers and call flows.".into(), sources: vec![] },
+                ProjectContent { accomplishment_id: "A9".into(), text: "Ghost".into(), sources: vec![] },
+            ],
             notes_for_candidate: String::new(),
         };
         let text = plain_text(&render_resume(&p, &r));
         assert!(text.starts_with("Jordan Sample\nMilwaukee, Wisconsin  |  jordan@example.com"));
         assert!(text.contains("Business Operations Specialist\nContoso  |  Nov 2023 – Present\n• Built Smartsheet dashboards"));
         assert!(text.contains("ADDITIONAL EXPERIENCE\nGuest Service, Fabrikam Hotels, 2002 – 2020"));
+        assert!(text.contains("SELECTED PROJECTS\nCall center template: Word call center template with escalation triggers and call flows."), "{text}");
+        assert!(!text.contains("Ghost"), "unknown projects are never printed");
+        let findings = check_resume(&r, &facts(&p), &p.skills, &evidence(&p), &job(), &positions(&p));
+        assert!(findings.iter().any(|f| f.location == "Selected Projects" && f.severity == "blocker"));
+        assert!(!findings.iter().any(|f| f.location == "Project 1"), "project cites its accomplishment automatically: {findings:?}");
         assert!(text.contains("Smartsheet  •  Excel"), "verified names with their own casing; unverified dropped");
         assert!(!text.contains("Made Up"));
         assert!(text.contains("Bachelor's degree, Public Relations; minor in Marketing, State University"));

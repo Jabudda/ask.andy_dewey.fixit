@@ -16,6 +16,7 @@ fn main() {
             bullets: x.exp.achievements.lines().filter(|l| !l.trim().is_empty()).take(if i == 0 { 5 } else { 2 })
                 .enumerate().map(|(j, l)| Line { text: l.trim().into(), sources: vec![format!("E{i}.{j}")] }).collect(),
         }).collect(),
+        projects: p.accomplishments.iter().enumerate().take(3).map(|(i, a)| ProjectContent { accomplishment_id: format!("A{i}"), text: a.description.clone(), sources: vec![] }).collect(),
         notes_for_candidate: String::new(),
     };
     let blocks = render_resume(&p, &r);

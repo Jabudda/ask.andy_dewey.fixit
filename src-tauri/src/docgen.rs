@@ -35,6 +35,7 @@ pub fn write_docx(blocks: &[Block], path: &Path) -> AppResult<()> {
             Block::Bullet(t) => Paragraph::new()
                 .add_run(run(&format!("•\t{t}")).size(21))
                 .indent(Some(360), Some(SpecialIndentType::Hanging(360)), None, None),
+            Block::Project { title, text } => Paragraph::new().add_run(run(&format!("{title}: ")).bold().size(21)).add_run(run(text).size(21)),
             Block::Gap => Paragraph::new(),
         };
         doc = doc.add_paragraph(p);
@@ -90,6 +91,13 @@ pub fn write_pdf(blocks: &[Block], title: &str, path: &Path) -> AppResult<()> {
                 doc.push(elements::Break::new(0.25));
             }
             Block::Bullet(t) => doc.push(elements::BulletPoint::new(elements::Paragraph::new(t.as_str())).with_bullet("•").padded(genpdf::Margins::trbl(0, 0, 0.6, 2))),
+            Block::Project { title, text } => {
+                let mut para = elements::Paragraph::default();
+                para.push_styled(format!("{title}: "), Style::new().bold());
+                para.push(text.as_str());
+                doc.push(para);
+                doc.push(elements::Break::new(0.2));
+            }
             Block::Gap => doc.push(elements::Break::new(0.6)),
         }
     }

@@ -109,7 +109,10 @@ export interface PreparedGeneration {
 }
 export interface Generated { document: DocumentRec; findings: Finding[]; costUsd: number; servedByFallback: boolean; notesForCandidate: string }
 export interface Line { text: string; sources: string[] }
-export interface ResumeContent { headline: string; summary: Line; skills: string[]; positions: { position_id: string; include: boolean; bullets: Line[] }[]; notes_for_candidate: string }
+export interface ResumeContent {
+  headline: string; summary: Line; skills: string[]; positions: { position_id: string; include: boolean; bullets: Line[] }[];
+  projects?: { accomplishment_id: string; text: string; sources: string[] }[]; notes_for_candidate: string;
+}
 export interface CoverLetterContent { greeting: string; paragraphs: Line[]; closing: string; notes_for_candidate: string }
 
 export interface JobDetail {
