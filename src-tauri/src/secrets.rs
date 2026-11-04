@@ -4,7 +4,7 @@
 use crate::error::{AppError, AppResult};
 
 pub const SERVICE: &str = "com.projectnextchapter.app";
-pub const NAMES: [&str; 1] = ["usajobs"];
+pub const NAMES: [&str; 2] = ["usajobs", "anthropic"];
 
 fn entry(name: &str) -> AppResult<keyring::Entry> {
     if !NAMES.contains(&name) {

@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import type { Preferences as Prefs } from "../lib/types";
 import { parseList } from "../lib/format";
 import { Card, Field, useToast } from "../components/ui";
+import { AiSettingsCard } from "../components/AiSettingsCard";
 
 const TYPES = ["Full-time", "Part-time", "Contract", "Temporary"];
 
@@ -104,6 +105,8 @@ export function Preferences() {
           </div>
         </Card>
       </div>
+      <AiSettingsCard />
+
       <Card title="Compatibility scoring weights" actions={<button className="btn small" onClick={() => setP({ ...p, scoringWeights: { title: 15, skills: 25, required: 20, preferred: 5, compensation: 10, remote: 15, seniority: 5, certifications: 5 } })}>Reset to defaults</button>}>
         <p className="muted small">How much each criterion counts toward the 0–100 score. Any numbers work, because they're relative. Set one to 0 to ignore it. Saving re-scores every job.</p>
         <div className="form-grid">

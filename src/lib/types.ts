@@ -93,7 +93,21 @@ export interface DocumentRec {
   jobId: number | null;
   version: number;
   createdAt: string;
+  contentJson: any | null;
+  claimReport: Finding[];
+  status: "draft" | "approved" | "superseded" | "final" | string;
+  approvedAt: string | null;
+  pdfPath: string | null;
 }
+
+export interface Finding { severity: "blocker" | "review" | string; location: string; text: string; message: string }
+export interface AiSettings { enabled: boolean; acknowledgedAt: string | null; model: string; effort: string; styleNotes: string }
+export interface AiUsageSummary { calls: number; totalUsd: number; monthUsd: number }
+export interface PreparedGeneration { kind: string; jobId: number; model: string; effort: string; system: string; user: string; factCount: number; estimatedUsd: number }
+export interface Generated { document: DocumentRec; findings: Finding[]; costUsd: number; servedByFallback: boolean; notesForCandidate: string }
+export interface Line { text: string; sources: string[] }
+export interface ResumeContent { headline: string; summary: Line; skills: string[]; positions: { position_id: string; include: boolean; bullets: Line[] }[]; notes_for_candidate: string }
+export interface CoverLetterContent { greeting: string; paragraphs: Line[]; closing: string; notes_for_candidate: string }
 
 export interface JobDetail {
   job: Job;

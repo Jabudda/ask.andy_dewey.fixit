@@ -337,6 +337,13 @@ pub struct DocumentRec {
     pub job_id: Option<i64>,
     pub version: i64,
     pub created_at: String,
+    /// Generated documents only: structured content, claim-check findings, approval state.
+    pub content_json: Option<serde_json::Value>,
+    pub claim_report: Vec<crate::tailoring::Finding>,
+    /// draft | approved | superseded | final
+    pub status: String,
+    pub approved_at: Option<String>,
+    pub pdf_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

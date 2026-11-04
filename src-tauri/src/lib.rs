@@ -1,16 +1,20 @@
 pub mod command_center;
+pub mod ai;
 pub mod commands;
 pub mod connectors;
 pub mod discovery;
+pub mod docgen;
 pub mod db;
 pub mod documents;
 pub mod eligibility;
 pub mod error;
 pub mod export;
+pub mod generate;
 pub mod models;
 pub mod parse;
 pub mod scoring;
 pub mod secrets;
+pub mod tailoring;
 
 use commands::AppState;
 use std::sync::Mutex;
@@ -94,6 +98,14 @@ pub fn run() {
             commands::set_search_interval,
             commands::run_discovery,
             commands::credential_status,
+            commands::get_ai_settings,
+            commands::save_ai_settings,
+            commands::ai_usage_summary,
+            commands::prepare_generation,
+            commands::generate_document,
+            commands::save_document_edit,
+            commands::approve_document,
+            commands::open_document_pdf,
             commands::save_credential,
             commands::delete_credential,
             commands::open_document,

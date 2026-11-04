@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   Accomplishment, AppInfo, Certification, Contact, DashboardStats, DocumentImportResult, Experience, Interview, Job,
-  Education, ImportReport, JobSource, RunSummary, SearchRun, SearchSettings, JobDetail, JobDraft, LogEntry, Preferences, ProfileBasics, ProfileBundle, Reminder, SaveJobResult, Skill, StatusChange,
+  AiSettings, AiUsageSummary, Generated, PreparedGeneration, Education, ImportReport, JobSource, RunSummary, SearchRun, SearchSettings, JobDetail, JobDraft, LogEntry, Preferences, ProfileBasics, ProfileBundle, Reminder, SaveJobResult, Skill, StatusChange,
 } from "./types";
 
 /** True when running inside the Tauri shell (false in a plain browser tab). */
@@ -62,6 +62,14 @@ export const api = {
   credentialStatus: (name: string) => call<boolean>("credential_status", { name }),
   saveCredential: (name: string, value: string) => call<void>("save_credential", { name, value }),
   deleteCredential: (name: string) => call<void>("delete_credential", { name }),
+  getAiSettings: () => call<AiSettings>("get_ai_settings"),
+  saveAiSettings: (settings: AiSettings) => call<void>("save_ai_settings", { settings }),
+  aiUsageSummary: () => call<AiUsageSummary>("ai_usage_summary"),
+  prepareGeneration: (jobId: number, kind: "resume" | "cover_letter") => call<PreparedGeneration>("prepare_generation", { jobId, kind }),
+  generateDocument: (jobId: number, kind: "resume" | "cover_letter") => call<Generated>("generate_document", { jobId, kind }),
+  saveDocumentEdit: (id: number, content: unknown) => call<Generated>("save_document_edit", { id, content }),
+  approveDocument: (id: number, reviewed: boolean) => call<import("./types").DocumentRec>("approve_document", { id, reviewed }),
+  openDocumentPdf: (id: number) => call<void>("open_document_pdf", { id }),
   runDiscovery: (sourceId?: number) => call<RunSummary[]>("run_discovery", { sourceId: sourceId ?? null }),
 
   exportJobs: (path: string, format: "csv" | "xlsx") => call<number>("export_jobs", { path, format }),

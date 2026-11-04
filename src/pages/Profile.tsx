@@ -10,6 +10,7 @@ const DOC_KINDS: [string, string][] = [
   ["career_document", "Supporting career document"],
   ["certification", "Certification"],
   ["accomplishment", "Accomplishment example"],
+  ["writing_sample", "Writing sample (for your voice)"],
 ];
 
 export function Profile() {

@@ -8,7 +8,20 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, database 
 
 ---
 
-## Phase 2 status (this release): discovery and scoring
+## Phase 3 status (this release): tailored resumes and cover letters
+
+| Area | What works |
+|---|---|
+| **AI writing (opt-in)** | Claude **Opus 5.5** by default; Sonnet 5.5 or Haiku 5.5 are optional. Turn it on in **Preferences → AI writing** after reading the disclosure. The API key lives in the **macOS Keychain**. Requests use structured JSON output, explicit effort, and server-side **refusal fallbacks**. Every call is logged with its tokens and estimated cost |
+| **What is sent** | Only the job posting, the fit analysis, the verified profile facts and your voice notes, and only when you click Generate. **Never sent:** your email, phone, address, notes, other jobs or documents. Before each generation, **See exactly what will be sent** shows the full prompt, and the estimated cost appears before you confirm |
+| **Integrity by construction** | Employers, titles, locations, dates, education and certifications are placed by the app from your profile; the model never writes them. Every model-written line must cite profile fact IDs. The **claim checker blocks** uncited lines, numbers missing from the cited fact, and tools, skills or certifications absent from your profile. Stock phrases are flagged for review |
+| **Documents** | ATS-friendly **Word (.docx)** and **PDF** files (single column, Arial, standard headings), saved per employer and role with version numbers. Older roles are condensed under "Additional Experience", so your history shows no gaps |
+| **Edit, compare, approve** | Edit headline, summary, skills, bullets or letter paragraphs; each save is a new re-checked version. Lines you add yourself are marked "written by you" for a final check. **Compare** shows the master resume beside the tailored one, with changes highlighted. **Approve** requires zero blocked lines plus confirmation of the review items, and moves the job to *Documents Ready* |
+| **Your voice** | Upload a writing sample (Career profile → Writing sample) and describe your voice in Preferences. Cover letters follow it, using at most one light personal touch. Nothing in the sample is ever used as a claim about your work |
+
+**Not yet:** in-app rich-text editing (edit the .docx in Word if you need formatting changes); proposed answers to application questions (Phase 4).
+
+## Phase 2 status: discovery and scoring
 
 ### Working and covered by automated tests
 | Area | What works |
@@ -24,7 +37,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, database 
 | **Folder import (improved)** | PDF line wraps are rejoined. A saved "posting" that contains your own name (an application page showing your resume) is never used as a job description |
 
 ### Not yet (planned)
-* **AI-written assessments** (optional, opt-in, with the API key kept in Keychain, or a local model). Scoring today is rule-based and fully explainable.
+* **AI-written fit assessments.** Scoring stays rule-based and fully explainable; AI is used only for documents.
 * **Background searches while the app is closed** (would need an explicitly authorised macOS LaunchAgent).
 * **Phases 3–5** (documents, application assistance, packaging) as in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -112,8 +125,8 @@ npm test
 npm run test:rust
 ```
 
-* **Rust (67 tests):** includes scoring (evidence-only credit, caps, weights, thin postings, years merging), all six connectors parsed from recorded API shapes, discovery filtering and run records, failure reporting, scheduling, and parsing (JSON-LD, pasted text, remote, Wisconsin, pay, employment type), eligibility rules, duplicate detection, status guards, preferences re-check, milestone isolation, dashboard metrics, follow-ups, profile CRUD, document import and extraction, CSV/XLSX export, backup/restore round-trip, rejection of non-backup files, log search, real PDF text extraction, and folder import (dry run writes nothing, statuses and dates, folder-based matching, no matching on document text, certificate parsing, idempotent re-run).
-* **TypeScript (8 tests):** countdown, money and pay formatting, annualisation, list parsing, filtering and sorting.
+* **Rust (81 tests):** includes the AI request shape (effort, structured output, fallbacks, no thinking or temperature overrides), refusal and truncation handling, cost maths, opt-in gating, fact extraction (no contact details), the claim checker (invented numbers, tools, uncited and unknown sources, user-written lines), rendering from profile facts, DOCX and PDF output read back, and the full generate → block → edit → approve flow; plus includes scoring (evidence-only credit, caps, weights, thin postings, years merging), all six connectors parsed from recorded API shapes, discovery filtering and run records, failure reporting, scheduling, and parsing (JSON-LD, pasted text, remote, Wisconsin, pay, employment type), eligibility rules, duplicate detection, status guards, preferences re-check, milestone isolation, dashboard metrics, follow-ups, profile CRUD, document import and extraction, CSV/XLSX export, backup/restore round-trip, rejection of non-backup files, log search, real PDF text extraction, and folder import (dry run writes nothing, statuses and dates, folder-based matching, no matching on document text, certificate parsing, idempotent re-run).
+* **TypeScript (10 tests):** includes how edited lines keep or lose their citations, plus countdown, money and pay formatting, annualisation, list parsing, filtering and sorting.
 
 ## Using the app (first 10 minutes)
 1. **Career profile →** upload your master resume (.docx). Confirm the suggested skills that are accurate, then add your positions with achievements in your own words.

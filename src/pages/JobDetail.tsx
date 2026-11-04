@@ -6,6 +6,7 @@ import { STATUSES } from "../lib/types";
 import { docKindLabel, draftOf, salaryText, shortDate } from "../lib/format";
 import { JobForm } from "../components/JobForm";
 import { ScoreCard } from "../components/ScoreCard";
+import { DocumentsPanel } from "../components/DocumentsPanel";
 import { Card, EligibilityBadge, Empty, Field, RemoteBadge, SalaryBadge, StatusBadge, confirmAction, useToast } from "../components/ui";
 import type { Nav } from "../App";
 
@@ -98,8 +99,9 @@ export function JobDetail({ id, go }: { id: number; go: Nav }) {
           <Card title="Notes" actions={<button className="btn small" disabled={notes === j.notes} onClick={() => api.updateNotes(j.id, notes).then(() => { notify("ok", "Notes saved"); load(); }).catch(fail)}>Save</button>}>
             <textarea rows={5} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Research, impressions, salary conversations…" />
           </Card>
-          <Card title={`Documents (${d.documents.length})`}>
-            {d.documents.length === 0 ? <Empty>No documents linked to this job yet.</Empty> : d.documents.map((doc) => (
+          <DocumentsPanel jobId={j.id} documents={d.documents} onChanged={load} />
+          <Card title={`Other documents (${d.documents.filter((x) => !x.kind.startsWith("generated_")).length})`}>
+            {d.documents.filter((x) => !x.kind.startsWith("generated_")).length === 0 ? <Empty>No other documents linked to this job.</Empty> : d.documents.filter((x) => !x.kind.startsWith("generated_")).map((doc) => (
               <div key={doc.id} className="list-row">
                 <div><strong>{docKindLabel(doc.kind)}</strong><div className="muted small">{doc.fileName}</div></div>
                 <button className="link" onClick={() => api.openDocument(doc.id).catch(fail)}>Open</button>

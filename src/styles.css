@@ -237,3 +237,8 @@ button.chip.add { cursor: pointer; color: var(--accent); font: inherit; font-siz
 .tone-text-muted { color: var(--text-muted); }
 input[type="range"] { padding: 0; accent-color: var(--accent-strong); }
 @media (max-width: 1180px) { .criteria { grid-template-columns: 1fr; } }
+.doc-kind { display: flex; flex-direction: column; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.doc-kind:last-of-type { border-bottom: none; }
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.compare pre { max-height: 480px; font-size: 12px; }
+.diff-new { background: rgba(94, 234, 212, .14); color: var(--text-primary); }

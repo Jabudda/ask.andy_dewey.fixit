@@ -94,7 +94,7 @@ pub fn rescore_jobs(state: S) -> AppResult<usize> {
 
 /// Copies a user-selected file into the app's documents folder and extracts its text.
 pub fn import_document_into(c: &Connection, docs_dir: &Path, src: &Path, kind: &str) -> AppResult<DocumentImportResult> {
-    const KINDS: [&str; 4] = ["master_resume", "career_document", "certification", "accomplishment"];
+    const KINDS: [&str; 5] = ["master_resume", "career_document", "certification", "accomplishment", "writing_sample"];
     if !KINDS.contains(&kind) {
         return Err(AppError::invalid("Unknown document type"));
     }
@@ -277,6 +277,62 @@ pub fn save_credential(state: S, name: String, value: String) -> AppResult<()> {
 pub fn delete_credential(state: S, name: String) -> AppResult<()> {
     crate::secrets::delete(&name)?;
     db::log(&*state.conn()?, "info", "credentials", &format!("{name} API key removed from the macOS Keychain"));
+    Ok(())
+}
+
+// ── AI writing & generated documents ──
+#[tauri::command]
+pub fn get_ai_settings(state: S) -> AppResult<crate::ai::AiSettings> {
+    crate::ai::get_settings(&*state.conn()?)
+}
+#[tauri::command]
+pub fn save_ai_settings(state: S, settings: crate::ai::AiSettings) -> AppResult<()> {
+    crate::ai::save_settings(&*state.conn()?, &settings)
+}
+#[tauri::command]
+pub fn ai_usage_summary(state: S) -> AppResult<crate::ai::UsageSummary> {
+    crate::ai::usage_summary(&*state.conn()?)
+}
+#[tauri::command]
+pub fn prepare_generation(state: S, job_id: i64, kind: String) -> AppResult<crate::generate::Prepared> {
+    crate::generate::prepare(&*state.conn()?, job_id, &kind)
+}
+#[tauri::command]
+pub async fn generate_document(state: State<'_, AppState>, job_id: i64, kind: String) -> AppResult<crate::generate::Generated> {
+    let (prep, body) = {
+        let c = state.conn()?;
+        let s = crate::ai::get_settings(&c)?;
+        if !s.enabled || s.acknowledged_at.is_none() {
+            return Err(AppError::invalid("Turn on AI writing in Preferences first"));
+        }
+        let p = crate::generate::prepare(&c, job_id, &kind)?;
+        let b = crate::generate::request_body(&p);
+        (p, b)
+    };
+    let key = crate::secrets::get("anthropic")?.ok_or_else(|| AppError::invalid("Add your Anthropic API key in Preferences → AI writing"))?;
+    let response = match crate::ai::send(&key, &body).await {
+        Ok(v) => v,
+        Err(e) => {
+            db::log(&*state.conn()?, "error", "ai", &e);
+            return Err(AppError::other(e));
+        }
+    };
+    let c = state.conn()?;
+    crate::generate::finish(&c, &state.documents_dir(), &prep, &response)
+}
+#[tauri::command]
+pub fn save_document_edit(state: S, id: i64, content: serde_json::Value) -> AppResult<crate::generate::Generated> {
+    crate::generate::save_edit(&*state.conn()?, &state.documents_dir(), id, &content)
+}
+#[tauri::command]
+pub fn approve_document(state: S, id: i64, reviewed: bool) -> AppResult<DocumentRec> {
+    crate::generate::approve(&*state.conn()?, id, reviewed)
+}
+#[tauri::command]
+pub fn open_document_pdf(state: S, id: i64) -> AppResult<()> {
+    let d = db::get_document(&*state.conn()?, id)?;
+    let p = d.pdf_path.ok_or_else(|| AppError::invalid("This document has no PDF version"))?;
+    std::process::Command::new("open").arg(p).spawn().map_err(AppError::other)?;
     Ok(())
 }
 

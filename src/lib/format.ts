@@ -118,6 +118,7 @@ const DOC_KINDS: Record<string, string> = {
   job_posting: "Saved job posting",
   generated_resume: "Generated resume",
   generated_cover_letter: "Generated cover letter",
+  writing_sample: "Writing sample",
 };
 export function docKindLabel(kind: string): string {
   return DOC_KINDS[kind] ?? kind.replace(/_/g, " ");

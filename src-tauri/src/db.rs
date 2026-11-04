@@ -13,6 +13,7 @@ use std::path::Path;
 const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/001_init.sql"),
     include_str!("../migrations/002_discovery_scoring.sql"),
+    include_str!("../migrations/003_documents_ai.sql"),
 ];
 pub const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;
 
@@ -884,6 +885,11 @@ fn doc_from_row(r: &Row) -> rusqlite::Result<DocumentRec> {
         job_id: r.get("job_id")?,
         version: r.get("version")?,
         created_at: r.get("created_at")?,
+        content_json: r.get::<_, Option<String>>("content_json")?.and_then(|s| serde_json::from_str(&s).ok()),
+        claim_report: r.get::<_, Option<String>>("claim_report")?.and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default(),
+        status: r.get("status")?,
+        approved_at: r.get("approved_at")?,
+        pdf_path: r.get("pdf_path")?,
     })
 }
 
