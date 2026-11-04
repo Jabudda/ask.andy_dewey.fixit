@@ -45,20 +45,20 @@ pub fn facts(p: &ProfileBundle) -> Vec<Fact> {
     for (i, e) in p.experience.iter().enumerate() {
         f.push(Fact { id: format!("P{i}"), text: format!("Position: {} at {} ({})", e.title, e.employer, date_range(e)) });
         for (j, line) in e.achievements.lines().map(|l| l.trim().trim_start_matches(['•', '-', '*']).trim()).filter(|l| !l.is_empty()).enumerate() {
-            f.push(Fact { id: format!("E{i}.{j}"), text: format!("[{} — {}] {}", e.title, e.employer, line) });
+            f.push(Fact { id: format!("E{i}.{j}"), text: format!("[{}, {}] {}", e.title, e.employer, line) });
         }
     }
     for (i, s) in p.skills.iter().enumerate() {
         f.push(Fact { id: format!("K{i}"), text: format!("Verified skill: {}{}", s.name, if s.category.is_empty() { String::new() } else { format!(" ({})", s.category) }) });
     }
     for (i, c) in p.certifications.iter().enumerate() {
-        f.push(Fact { id: format!("C{i}"), text: format!("Certification: {}{}{}", c.name, if c.issuer.is_empty() { String::new() } else { format!(" — {}", c.issuer) }, if c.date_earned.is_empty() { String::new() } else { format!(", {}", c.date_earned) }) });
+        f.push(Fact { id: format!("C{i}"), text: format!("Certification: {}{}{}", c.name, if c.issuer.is_empty() { String::new() } else { format!(", {}", c.issuer) }, if c.date_earned.is_empty() { String::new() } else { format!(", {}", c.date_earned) }) });
     }
     for (i, e) in p.education.iter().enumerate() {
         f.push(Fact { id: format!("D{i}"), text: format!("Education: {} {} {}{}", e.degree, e.field, e.institution, if e.minor.is_empty() { String::new() } else { format!(", minor {}", e.minor) }) });
     }
     for (i, a) in p.accomplishments.iter().enumerate() {
-        f.push(Fact { id: format!("A{i}"), text: format!("Accomplishment: {} — {}", a.title, a.description) });
+        f.push(Fact { id: format!("A{i}"), text: format!("Accomplishment: {}: {}", a.title, a.description) });
     }
     f
 }
@@ -163,7 +163,8 @@ pub fn system_prompt(kind: &str, style_notes: &str) -> String {
          4. You may rephrase and reorder to emphasise what this employer needs, and use the posting's own terminology where the facts truthfully support it. Do not stretch a fact to match a requirement it does not meet.\n\
          5. Do not mention requirements the candidate lacks, and never imply they have them.\n\
          6. Avoid stock phrases, including: {}.\n\
-         7. Write in plain, specific language. No exclamation marks.\n",
+         7. Write in plain, specific language. No exclamation marks.\n\
+         8. Never use em dashes (—). Use commas, colons, semicolons, parentheses or separate sentences instead.\n",
         BANNED_PHRASES.join("; ")
     );
     if kind == "resume" {
@@ -172,7 +173,7 @@ pub fn system_prompt(kind: &str, style_notes: &str) -> String {
              - `headline`: one line, up to 12 words, built from the candidate's real roles and strengths, aligned to the posting.\n\
              - `summary`: 2–3 sentences.\n\
              - `skills`: 8–14 entries chosen ONLY from the facts labelled \"Verified skill\", copied exactly, most relevant first.\n\
-             - `positions`: one entry for EVERY position ID given, in the same order. Set include=true for positions whose work supports this application; give recent relevant roles 3–6 bullets and older roles 0–2. Set include=false (no bullets) for roles that add nothing — they are still listed by title, employer and dates.\n\
+             - `positions`: one entry for EVERY position ID given, in the same order. Set include=true for positions whose work supports this application; give recent relevant roles 3–6 bullets and older roles 0–2. Set include=false (no bullets) for roles that add nothing; they are still listed by title, employer and dates.\n\
              - Bullets start with a strong past-tense verb (present tense for the current role), one idea each, under 30 words, ATS-friendly plain text.\n\
              - `notes_for_candidate`: 1–3 short sentences on what you emphasised and anything they should check.\n"
         )
@@ -200,11 +201,11 @@ pub fn user_prompt(job: &Job, facts: &[Fact], positions: &[PositionRef]) -> Stri
         job.draft.title,
         job.draft.employer,
         job.draft.location_text,
-        if job.draft.description.trim().is_empty() { "(No description saved — tailor to the title and employer only.)".to_string() } else { job.draft.description.chars().take(30_000).collect() },
+        if job.draft.description.trim().is_empty() { "(No description saved; tailor to the title and employer only.)".to_string() } else { job.draft.description.chars().take(30_000).collect() },
         list(&b.satisfied),
         list(&b.partial),
         list(&b.gaps),
-        positions.iter().map(|p| format!("{}: {} — {} ({})", p.id, p.exp.title, p.exp.employer, date_range(&p.exp))).collect::<Vec<_>>().join("\n"),
+        positions.iter().map(|p| format!("{}: {} at {} ({})", p.id, p.exp.title, p.exp.employer, date_range(&p.exp))).collect::<Vec<_>>().join("\n"),
         facts.iter().map(|f| format!("[{}] {}", f.id, f.text)).collect::<Vec<_>>().join("\n"),
     )
 }
@@ -375,7 +376,7 @@ pub fn render_resume(p: &ProfileBundle, c: &ResumeContent) -> Vec<Block> {
     if !other.is_empty() {
         b.push(Block::Heading("Additional Experience".into()));
         for x in other {
-            b.push(Block::Para(format!("{} — {}, {}", x.exp.title, x.exp.employer, date_range(&x.exp))));
+            b.push(Block::Para(format!("{}, {}, {}", x.exp.title, x.exp.employer, date_range(&x.exp))));
         }
     }
     if !p.education.is_empty() {
@@ -385,7 +386,7 @@ pub fn render_resume(p: &ProfileBundle, c: &ResumeContent) -> Vec<Block> {
             if !e.minor.is_empty() {
                 s.push_str(&format!("; minor in {}", e.minor));
             }
-            b.push(Block::Para(format!("{}{}{}", s, if s.is_empty() { "" } else { " — " }, e.institution)));
+            b.push(Block::Para(format!("{}{}{}", s, if s.is_empty() { "" } else { ", " }, e.institution)));
         }
     }
     if !p.certifications.is_empty() {
@@ -414,7 +415,7 @@ pub fn render_resume(p: &ProfileBundle, c: &ResumeContent) -> Vec<Block> {
                 for cert in group {
                     let date = if cert.date_earned.is_empty() { String::new() } else { month_name(&cert.date_earned) };
                     let detail = [cert.issuer.as_str(), date.as_str()].iter().filter(|x| !x.is_empty()).cloned().collect::<Vec<_>>().join(", ");
-                    b.push(Block::Bullet(if detail.is_empty() { cert.name.clone() } else { format!("{} — {}", cert.name, detail) }));
+                    b.push(Block::Bullet(if detail.is_empty() { cert.name.clone() } else { format!("{}, {}", cert.name, detail) }));
                 }
             }
         }
@@ -436,6 +437,34 @@ pub fn render_cover_letter(p: &ProfileBundle, job: &Job, c: &CoverLetterContent,
     b.push(Block::Para(if c.closing.trim().is_empty() { "Sincerely,".into() } else { c.closing.trim().to_string() }));
     b.push(Block::Para(p.basics.full_name.clone()));
     b
+}
+
+static RE_EM_DASH: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s*—\s*").unwrap());
+
+/// Replaces em dashes with a comma (the candidate prefers not to use them).
+pub fn clean_dashes(s: &str) -> String {
+    let t = RE_EM_DASH.replace_all(s.trim(), ", ").to_string();
+    t.replace(",,", ",").replace(", .", ".").replace(", ,", ",").trim_start_matches(", ").to_string()
+}
+
+pub fn clean_resume(mut r: ResumeContent) -> ResumeContent {
+    r.headline = clean_dashes(&r.headline);
+    r.summary.text = clean_dashes(&r.summary.text);
+    for p in r.positions.iter_mut() {
+        for b in p.bullets.iter_mut() {
+            b.text = clean_dashes(&b.text);
+        }
+    }
+    r
+}
+
+pub fn clean_letter(mut l: CoverLetterContent) -> CoverLetterContent {
+    l.greeting = clean_dashes(&l.greeting);
+    l.closing = clean_dashes(&l.closing);
+    for p in l.paragraphs.iter_mut() {
+        p.text = clean_dashes(&p.text);
+    }
+    l
 }
 
 pub fn plain_text(blocks: &[Block]) -> String {
@@ -523,8 +552,8 @@ pub(crate) mod tests {
         assert!(f.iter().any(|x| x.id == "K1" && x.text.contains("Excel")));
         assert!(!f.iter().any(|x| x.text.contains("jordan@example.com")), "contact details are never sent");
         let u = user_prompt(&job(), &f, &positions(&p));
-        assert!(u.contains("[E0.1] [Business Operations Specialist — Contoso] Built Smartsheet dashboards"));
-        assert!(u.contains("P0: Business Operations Specialist — Contoso (Nov 2023 – Present)"));
+        assert!(u.contains("[E0.1] [Business Operations Specialist, Contoso] Built Smartsheet dashboards"));
+        assert!(u.contains("P0: Business Operations Specialist at Contoso (Nov 2023 – Present)"));
     }
 
     #[test]
@@ -595,11 +624,14 @@ pub(crate) mod tests {
         let text = plain_text(&render_resume(&p, &r));
         assert!(text.starts_with("Jordan Sample\nMilwaukee, Wisconsin  |  jordan@example.com"));
         assert!(text.contains("Business Operations Specialist\nContoso  |  Nov 2023 – Present\n• Built Smartsheet dashboards"));
-        assert!(text.contains("ADDITIONAL EXPERIENCE\nGuest Service — Fabrikam Hotels, 2002 – 2020"));
+        assert!(text.contains("ADDITIONAL EXPERIENCE\nGuest Service, Fabrikam Hotels, 2002 – 2020"));
         assert!(text.contains("Smartsheet  •  Excel"), "verified names with their own casing; unverified dropped");
         assert!(!text.contains("Made Up"));
-        assert!(text.contains("Bachelor's degree, Public Relations; minor in Marketing — State University"));
-        assert!(text.contains("• Smartsheet Builder — Smartsheet University, Apr 2025"), "{text}");
+        assert!(text.contains("Bachelor's degree, Public Relations; minor in Marketing, State University"));
+        assert!(text.contains("• Smartsheet Builder, Smartsheet University, Apr 2025"), "{text}");
+        assert!(!text.contains('—'), "no em dashes anywhere in the rendered resume");
+        assert_eq!(clean_dashes("Built dashboards — fast — for leaders"), "Built dashboards, fast, for leaders");
+        assert_eq!(clean_dashes("Results—not noise."), "Results, not noise.");
         let mut many = p.clone();
         many.certifications = (0..4)
             .map(|i| Certification { name: format!("Course {i} - Self-Paced"), issuer: "Smartsheet University".into(), date_earned: format!("202{}-04", 4 + i % 2), ..Default::default() })

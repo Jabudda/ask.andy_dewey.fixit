@@ -80,7 +80,7 @@ pub fn previous_applications(c: &Connection, job: &Job) -> AppResult<Vec<(String
             cands.sort_by_key(|d| std::cmp::Reverse(d.created_at.clone()));
             if let Some(d) = cands.first() {
                 let what = if kinds[0] == "sent_resume" { "resume" } else { "cover letter" };
-                let label = format!("{} at {} ({}) — {what}", other.draft.title, other.draft.employer, other.status);
+                let label = format!("{} at {} ({}), {what}", other.draft.title, other.draft.employer, other.status);
                 if !out.iter().any(|(_, t)| t == &d.extracted_text) {
                     out.push((label, d.extracted_text.clone()));
                 }
@@ -165,10 +165,12 @@ pub fn save_version(c: &Connection, docs_dir: &Path, job_id: i64, kind: &str, co
     let evidence = crate::scoring::profile_facts(&p, &db::master_resume_text(c)?, db::today()).evidence;
     let (blocks, findings, notes, clean) = if kind == "resume" {
         let r: ResumeContent = serde_json::from_value(content.clone()).map_err(|e| AppError::invalid(format!("Resume content is malformed: {e}")))?;
+        let r = tailoring::clean_resume(r);
         let f = tailoring::check_resume(&r, &facts, &p.skills, &evidence, &job, &tailoring::positions(&p));
         (tailoring::render_resume(&p, &r), f, r.notes_for_candidate.clone(), serde_json::to_value(&r).map_err(AppError::other)?)
     } else {
         let l: CoverLetterContent = serde_json::from_value(content.clone()).map_err(|e| AppError::invalid(format!("Cover letter content is malformed: {e}")))?;
+        let l = tailoring::clean_letter(l);
         let f = tailoring::check_cover_letter(&l, &facts, &evidence, &job);
         let date = chrono::Local::now().format("%B %-d, %Y").to_string();
         (tailoring::render_cover_letter(&p, &job, &l, &date), f, l.notes_for_candidate.clone(), serde_json::to_value(&l).map_err(AppError::other)?)
@@ -182,7 +184,7 @@ pub fn save_version(c: &Connection, docs_dir: &Path, job_id: i64, kind: &str, co
     let docx = dir.join(format!("{stem}.docx"));
     let pdf = dir.join(format!("{stem}.pdf"));
     docgen::write_docx(&blocks, &docx)?;
-    docgen::write_pdf(&blocks, &format!("{} — {}", p.basics.full_name, label.replace('_', " ")), &pdf)?;
+    docgen::write_pdf(&blocks, &format!("{} - {}", p.basics.full_name, label.replace('_', " ")), &pdf)?;
     let text = tailoring::plain_text(&blocks);
     let sha = crate::documents::sha256_hex(&std::fs::read(&docx)?);
     c.execute(
@@ -375,7 +377,7 @@ mod tests {
         assert!(!without.includes_previous && !without.user.contains("previous_application"));
         let with = prepare(&c, id, "resume", true).unwrap();
         assert!(with.includes_previous);
-        assert!(with.user.contains("<previous_application note=\"IT Project Manager at HSAG Inc (Rejected) — resume\">"));
+        assert!(with.user.contains("<previous_application note=\"IT Project Manager at HSAG Inc (Rejected), resume\">"));
         assert!(with.user.contains("never as a source"));
         assert!(!with.user.contains("Jordan Sample") && with.user.contains("[candidate]"));
         assert!(!with.user.contains("jordan@example.com") && !with.user.contains("414.555.0100") && !with.user.contains("linkedin.com/in/jordan"));
