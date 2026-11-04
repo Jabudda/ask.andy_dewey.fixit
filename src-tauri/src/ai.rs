@@ -206,6 +206,9 @@ pub async fn send(api_key: &str, body: &Value) -> Result<Value, String> {
         match status {
             200 => return Ok(v),
             401 | 403 => return Err("Anthropic rejected the API key. Replace it in Preferences → AI writing.".into()),
+            400 if api_msg.to_lowercase().contains("credit balance") => {
+                return Err("Your Anthropic account has no API credits available. API credits are bought at console.anthropic.com → Billing, in the same organization as your API key (a claude.ai subscription does not include API credits). New credits can take a few minutes to apply. Nothing was charged.".into())
+            }
             400 | 404 | 413 => return Err(format!("Anthropic could not process the request (HTTP {status}): {api_msg}")),
             429 | 500..=599 => last = format!("Anthropic is busy or rate-limited (HTTP {status}). {api_msg}"),
             _ => return Err(format!("Unexpected response from Anthropic (HTTP {status}): {api_msg}")),
