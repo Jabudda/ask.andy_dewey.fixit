@@ -70,10 +70,10 @@ export function JobDetail({ id, go }: { id: number; go: Nav }) {
               <div><span className="muted small">Compatibility score</span><span className="strong">{j.score ?? "—"}{j.score != null && "/100"}</span></div>
             </div>
             {j.excludedReasons.length > 0 && (
-              <div className="alert alert-bad"><strong>✕ Fails a mandatory requirement</strong><ul>{j.excludedReasons.map((r, i) => <li key={i}>{r}</li>)}</ul></div>
+              <div className="alert alert-bad"><strong>⛔ Fails a mandatory requirement</strong><ul>{j.excludedReasons.map((r, i) => <li key={i}>{r}</li>)}</ul></div>
             )}
             {j.reviewFlags.length > 0 && (
-              <div className="alert alert-warn"><strong>! Needs your review</strong><ul>{j.reviewFlags.map((r, i) => <li key={i}>{r}</li>)}</ul></div>
+              <div className="alert alert-warn"><strong>⚠️ Needs your review</strong><ul>{j.reviewFlags.map((r, i) => <li key={i}>{r}</li>)}</ul></div>
             )}
             {j.detectionNotes.length > 0 && (
               <details className="small"><summary>Where this information came from</summary>

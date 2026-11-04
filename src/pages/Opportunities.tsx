@@ -85,9 +85,9 @@ export function Opportunities({ go, initialStatus }: { go: Nav; initialStatus?: 
                   <td className="nowrap">{shortDate(j.discoveredAt)}</td>
                   <td>
                     {j.excludedReasons.length > 0 ? (
-                      <span className="badge tone-bad" title={j.excludedReasons.join("\n")}>✕ Excluded</span>
+                      <span className="badge tone-bad" title={j.excludedReasons.join("\n")}>⛔ Excluded</span>
                     ) : j.reviewFlags.length > 0 ? (
-                      <span className="badge tone-warn" title={j.reviewFlags.join("\n")}>! {j.reviewFlags.length} to review</span>
+                      <span className="badge tone-warn" title={j.reviewFlags.join("\n")}>⚠️ {j.reviewFlags.length} to review</span>
                     ) : (
                       <SalaryBadge value={j.salaryFlag} />
                     )}

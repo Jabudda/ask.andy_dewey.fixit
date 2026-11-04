@@ -27,9 +27,9 @@ function FindingList({ findings }: { findings: Finding[] }) {
   const review = findings.filter((f) => f.severity !== "blocker");
   return (
     <div className="small">
-      {blockers.length > 0 && <div className="alert alert-bad"><strong>✕ {blockers.length} line{blockers.length > 1 ? "s" : ""} can't be approved yet</strong> — edit or remove them:
+      {blockers.length > 0 && <div className="alert alert-bad"><strong>⛔ {blockers.length} line{blockers.length > 1 ? "s" : ""} can't be approved yet</strong> — edit or remove them:
         <ul>{blockers.map((f, i) => <li key={i}><em>{f.location}</em>: {f.message}<div className="muted">“{f.text}”</div></li>)}</ul></div>}
-      {review.length > 0 && <div className="alert alert-warn"><strong>! {review.length} to review</strong>
+      {review.length > 0 && <div className="alert alert-warn"><strong>⚠️ {review.length} to review</strong>
         <ul>{review.map((f, i) => <li key={i}><em>{f.location}</em>: {f.message}</li>)}</ul></div>}
     </div>
   );
@@ -93,7 +93,7 @@ function KindSection({ kind, jobId, aiOn, profile, master, versions, onChanged }
           <strong>{LABEL[kind]}</strong>{" "}
           {latest ? <>
             <span className={`badge tone-${latest.status === "approved" ? "good" : "warn"}`}>{latest.status === "approved" ? "✓ Approved" : "Draft"} · v{latest.version}</span>
-            {blockers > 0 && <span className="badge tone-bad">✕ {blockers} blocked</span>}
+            {blockers > 0 && <span className="badge tone-bad">⛔ {blockers} blocked</span>}
           </> : <span className="muted small">none yet</span>}
         </div>
         <div className="btn-row">

@@ -97,7 +97,7 @@ export function SalaryBadge({ value }: { value: string }) {
 
 /** Status meaning is never carried by color alone. */
 function icon(tone: string) {
-  return tone === "good" ? "✓" : tone === "bad" ? "✕" : tone === "warn" ? "!" : "";
+  return tone === "good" ? "✓" : tone === "bad" ? "⛔" : tone === "warn" ? "⚠️" : "";
 }
 
 /** Native macOS confirmation sheet (window.confirm is not reliable inside the WebView). */

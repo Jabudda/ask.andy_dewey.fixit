@@ -103,7 +103,7 @@ export function Discovery({ go }: { go: Nav }) {
                 <tr key={r.sourceId}>
                   <td>{r.label}</td><td className="num">{r.found}</td><td className="num strong">{r.newJobs}</td><td className="num">{r.filtered}</td>
                   <td className="num">{r.excluded}</td><td className="num">{r.duplicates}</td>
-                  <td>{r.error ? <span className="badge tone-bad">✕ {r.error}</span> : r.skippedReason ? <span className="muted small">{r.skippedReason}</span> : <span className="badge tone-good">✓ ok</span>}</td>
+                  <td>{r.error ? <span className="badge tone-bad">🔴 {r.error}</span> : r.skippedReason ? <span className="muted small">{r.skippedReason}</span> : <span className="badge tone-good">✓ ok</span>}</td>
                 </tr>
               ))}
             </tbody>
@@ -150,7 +150,7 @@ export function Discovery({ go }: { go: Nav }) {
         </Card>
       </div>
 
-      <Card title="USAJOBS (federal jobs)" actions={hasKey ? <span className="badge tone-good">✓ Key saved in Keychain</span> : <span className="badge tone-warn">! Not connected</span>}>
+      <Card title="USAJOBS (federal jobs)" actions={hasKey ? <span className="badge tone-good">✓ Key saved in Keychain</span> : <span className="badge tone-warn">⚠️ Not connected</span>}>
         <p className="muted small">Searches remote federal postings that are open to the public, using your own free USAJOBS API key. The key is kept in the macOS Keychain and is never shown again, stored in the database, exported or backed up. USAJOBS requires your registered email with every request. The first search may ask you to allow access to the Keychain; choose “Always Allow”.</p>
         <div className="form-grid">
           <Field label="Email you registered the key with"><input value={fedEmail} placeholder="you@example.com" onChange={(e) => setFedEmail(e.target.value)} /></Field>
@@ -174,7 +174,7 @@ export function Discovery({ go }: { go: Nav }) {
                   <td>{s.label || s.identifier}{!KEYWORD.includes(s.kind) && <div className="muted small mono">{s.identifier}</div>}</td>
                   <td>{KIND_LABEL[s.kind] ?? s.kind}{KEYWORD.includes(s.kind) && <div className="muted small">keyword search</div>}</td>
                   <td className="nowrap">{s.lastRunAt ?? <span className="muted">never</span>}</td>
-                  <td>{s.lastStatus === "error" ? <span className="badge tone-bad" title={s.lastError ?? ""}>✕ {s.lastError?.slice(0, 60)}</span> : s.lastStatus === "ok" ? <span className="badge tone-good">✓ ok</span> : <span className="muted">—</span>}</td>
+                  <td>{s.lastStatus === "error" ? <span className="badge tone-bad" title={s.lastError ?? ""}>🔴 {s.lastError?.slice(0, 60)}</span> : s.lastStatus === "ok" ? <span className="badge tone-good">✓ ok</span> : <span className="muted">—</span>}</td>
                   <td className="nowrap">
                     <button className="link" disabled={running !== null} onClick={() => run(s.id!)}>{running === s.id ? "Running…" : "Run"}</button>{" "}
                     <button className="link danger" onClick={() => remove(s)}>Remove</button>
@@ -199,7 +199,7 @@ export function Discovery({ go }: { go: Nav }) {
                     <td>{sources.find((s) => s.id === r.sourceId)?.label ?? r.connector}</td>
                     <td>{r.trigger}</td>
                     <td className="num">{r.found}</td><td className="num">{r.newJobs}</td><td className="num">{r.filtered}</td><td className="num">{r.excluded}</td><td className="num">{r.duplicates}</td>
-                    <td>{r.error ? <span className="badge tone-bad">✕ {r.error}</span> : <span className="badge tone-good">✓</span>}</td>
+                    <td>{r.error ? <span className="badge tone-bad">🔴 {r.error}</span> : <span className="badge tone-good">✓</span>}</td>
                   </tr>
                 ))}
               </tbody>

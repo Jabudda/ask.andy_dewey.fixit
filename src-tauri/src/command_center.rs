@@ -840,7 +840,7 @@ fn import(c: &Connection, docs_dir: &Path, root: &Path, dry_run: bool) -> AppRes
     // 6. Final flags per job (after postings may have changed eligibility)
     for line in r.jobs.iter_mut() {
         let j = db::get_job(c, line.job_id)?;
-        line.flags = j.excluded_reasons.iter().map(|x| format!("✕ {x}")).chain(j.review_flags.iter().map(|x| format!("! {x}"))).collect();
+        line.flags = j.excluded_reasons.iter().map(|x| format!("⛔ {x}")).chain(j.review_flags.iter().map(|x| format!("⚠️ {x}"))).collect();
         line.posting = postings.get(&line.job_id).cloned();
         line.linked_documents = linked.get(&line.job_id).copied().unwrap_or(0);
     }

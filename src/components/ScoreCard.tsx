@@ -3,8 +3,8 @@ import { Card } from "./ui";
 
 const REC: Record<string, [string, string]> = {
   apply: ["✓ Recommended — apply", "good"],
-  consider: ["! Worth considering", "warn"],
-  skip: ["✕ Not recommended", "bad"],
+  consider: ["⚠️ Worth considering", "warn"],
+  skip: ["⛔ Not recommended", "bad"],
 };
 
 function List({ title, items, tone }: { title: string; items: string[]; tone: string }) {
