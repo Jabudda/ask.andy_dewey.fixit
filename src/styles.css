@@ -45,7 +45,7 @@ code, .mono { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size:
 .app { display: grid; grid-template-columns: 220px 1fr; height: 100vh; }
 .sidebar { background: var(--surface-1); border-right: 1px solid var(--border); padding: 18px 12px; display: flex; flex-direction: column; gap: 2px; }
 .brand { display: flex; gap: 10px; align-items: center; padding: 4px 8px 18px; }
-.brand-mark { color: var(--accent); font-size: 28px; line-height: 1; }
+.brand-mark { width: 44px; height: 44px; flex: none; margin: -4px; }
 .brand-name { font-weight: 700; font-size: 15px; }
 .brand-sub { color: var(--text-muted); font-size: 12px; }
 .nav-item { all: unset; cursor: pointer; display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; color: var(--text-secondary); }

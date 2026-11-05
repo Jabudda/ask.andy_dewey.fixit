@@ -12,6 +12,7 @@ import { Preferences } from "./pages/Preferences";
 import { DataLogs } from "./pages/DataLogs";
 import { Discovery } from "./pages/Discovery";
 import type { RunSummary } from "./lib/types";
+import logo from "./assets/logo.svg";
 import { useToast } from "./components/ui";
 
 export type Route =
@@ -92,7 +93,7 @@ export function App() {
       <div className="app">
         <nav className="sidebar">
           <div className="brand">
-            <span className="brand-mark">▍</span>
+            <img className="brand-mark" src={logo} alt="" width={44} height={44} />
             <div><div className="brand-name">Next Chapter</div><div className="brand-sub">Job search, under your control</div></div>
           </div>
           {NAV.map(([page, label, icon]) => (

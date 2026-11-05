@@ -1,7 +1,66 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e3a5f"/><stop offset="1" stop-color="#0b1220"/></linearGradient></defs>
-  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#g)"/>
-  <path d="M300 300h250a90 90 0 0 1 90 90v344H390a90 90 0 0 1-90-90z" fill="#e2e8f0"/>
-  <path d="M640 390a90 90 0 0 1 90-90h0v344a90 90 0 0 1-90 90z" fill="#5eead4"/>
-  <path d="M370 420h200M370 500h200M370 580h140" stroke="#1e3a5f" stroke-width="34" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#173A63"/>
+      <stop offset="0.55" stop-color="#145A6E"/>
+      <stop offset="1" stop-color="#0E7C74"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.56" r="0.42">
+      <stop offset="0" stop-color="#FFD58A" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#FFD58A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFE29A"/>
+      <stop offset="1" stop-color="#F59E3B"/>
+    </linearGradient>
+    <linearGradient id="pageL" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#E9F1F7"/>
+      <stop offset="1" stop-color="#FFFFFF"/>
+    </linearGradient>
+    <linearGradient id="pageR" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E3EDF5"/>
+    </linearGradient>
+    <linearGradient id="turn" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="1"/>
+      <stop offset="1" stop-color="#FFF1D6" stop-opacity="1"/>
+    </linearGradient>
+    <clipPath id="sq"><rect x="100" y="100" width="824" height="824" rx="186"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#sq)">
+    <rect x="100" y="100" width="824" height="824" fill="url(#bg)"/>
+    <circle cx="512" cy="560" r="380" fill="url(#glow)"/>
+    <!-- sun rising from the book's gutter -->
+    <g stroke="#FFD27A" stroke-width="22" stroke-linecap="round" opacity="0.9">
+      <line x1="512" y1="262" x2="512" y2="318"/>
+      <line x1="364" y1="322" x2="394" y2="366"/>
+      <line x1="660" y1="322" x2="630" y2="366"/>
+      <line x1="270" y1="430" x2="320" y2="452"/>
+    </g>
+    <circle cx="512" cy="560" r="150" fill="url(#sun)"/>
+  </g>
+
+  <!-- open book -->
+  <g>
+    <!-- book shadow -->
+    <path d="M512 772 C430 742 330 736 226 746 L226 774 C330 764 430 770 512 800 C594 770 694 764 798 774 L798 746 C694 736 594 742 512 772 Z" fill="#E8774A"/>
+    <!-- left page -->
+    <path d="M512 540 C430 500 330 494 236 508 L236 748 C330 736 430 742 512 772 Z" fill="url(#pageL)"/>
+    <!-- right page -->
+    <path d="M512 540 C594 500 694 494 788 508 L788 748 C694 736 594 742 512 772 Z" fill="url(#pageR)"/>
+    <!-- lines of text, fading toward the gutter -->
+    <g stroke="#A9BED0" stroke-width="12" stroke-linecap="round" fill="none">
+      <path d="M282 574 C340 566 400 568 462 584"/>
+      <path d="M282 622 C340 614 400 616 462 632"/>
+      <path d="M282 670 C340 662 400 664 440 674"/>
+    </g>
+    <!-- soft shadow cast by the turning page -->
+    <path d="M512 772 C560 708 620 676 700 668 L760 700 C680 704 590 730 512 772 Z" fill="#0B2740" opacity="0.10"/>
+    <!-- turning page: lifting off the left side toward the next chapter -->
+    <path d="M512 540 C548 470 620 404 716 380 C700 460 690 560 700 668 C620 676 560 708 512 772 Z" fill="url(#turn)"/>
+    <path d="M512 540 C548 470 620 404 716 380" fill="none" stroke="#F59E3B" stroke-width="10" stroke-linecap="round"/>
+    <!-- spine -->
+    <path d="M512 540 L512 772" stroke="#B9CCDB" stroke-width="6"/>
+  </g>
 </svg>
