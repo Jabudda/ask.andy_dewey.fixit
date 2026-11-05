@@ -15,6 +15,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/002_discovery_scoring.sql"),
     include_str!("../migrations/003_documents_ai.sql"),
     include_str!("../migrations/004_internal_candidate.sql"),
+    include_str!("../migrations/005_application_assist.sql"),
 ];
 pub const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;
 
@@ -379,6 +380,16 @@ pub fn update_notes(c: &Connection, id: i64, notes: &str) -> AppResult<()> {
 
 /// The single entry point for status changes, with the human-in-the-loop guards.
 pub fn change_status(c: &Connection, req: &StatusChange) -> AppResult<Job> {
+    change_status_inner(c, req, false)
+}
+
+/// For the tracker importer only: records history that happened before the app existed
+/// (applications you already sent yourself), so the per-job approval gate does not apply.
+pub(crate) fn record_imported_status(c: &Connection, req: &StatusChange) -> AppResult<Job> {
+    change_status_inner(c, req, true)
+}
+
+fn change_status_inner(c: &Connection, req: &StatusChange, imported: bool) -> AppResult<Job> {
     if !STATUSES.contains(&req.to_status.as_str()) {
         return Err(AppError::invalid(format!("Unknown status “{}”", req.to_status)));
     }
@@ -389,6 +400,17 @@ pub fn change_status(c: &Connection, req: &StatusChange) -> AppResult<Job> {
     if req.to_status == "Approved" && job.status != "Awaiting Approval" {
         return Err(AppError::invalid(
             "A job can only be Approved from the Awaiting Approval queue, after you have reviewed it there.",
+        ));
+    }
+    if req.to_status == "Approved" && !imported {
+        let b = crate::application::blockers(c, &job)?;
+        if !b.is_empty() {
+            return Err(AppError::invalid(format!("Not ready to approve: {}.", b.join("; "))));
+        }
+    }
+    if req.to_status == "Submitted" && !imported && job.submitted_at.is_none() && !matches!(job.status.as_str(), "Approved" | "In Progress") {
+        return Err(AppError::invalid(
+            "Approve this job in the Review queue before marking it Submitted. Nothing is submitted without your per-job approval.",
         ));
     }
     let reference = req.confirmation_ref.as_deref().map(str::trim).filter(|s| !s.is_empty());
@@ -414,6 +436,9 @@ pub fn change_status(c: &Connection, req: &StatusChange) -> AppResult<Job> {
     )?;
     tx.commit()?;
     log(c, "info", "status", &format!("Job #{}: {} → {}", req.job_id, job.status, req.to_status));
+    if req.to_status == "Submitted" && !imported && job.submitted_at.is_none() && !job.is_sample {
+        crate::application::schedule_follow_up(c, req.job_id)?;
+    }
     get_job(c, req.job_id)
 }
 
@@ -1079,7 +1104,8 @@ mod tests {
     #[test]
     fn status_guards() {
         let c = open_in_memory().unwrap();
-        let id = insert_job(&c, &draft("Contoso", "Ops Analyst"), false, false).unwrap().id.unwrap();
+        // a sample job: exempt from the document checks, which application.rs tests separately
+        let id = insert_job(&c, &draft("Contoso", "Ops Analyst"), false, true).unwrap().id.unwrap();
         let ch = |to: &str, confirm: bool, r: Option<&str>| StatusChange {
             job_id: id,
             to_status: to.into(),

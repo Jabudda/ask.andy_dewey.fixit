@@ -237,3 +237,10 @@ export interface ImportReport {
 
 export interface LogEntry { id: number; ts: string; level: string; source: string; message: string }
 export interface AppInfo { version: string; dataDir: string; databasePath: string; documentsDir: string }
+
+// ── Phase 4: review queue & application assistance ──
+export interface JobAnswer { id?: number | null; jobId: number; key: string; question: string; answer: string; source: string; status: "proposed" | "needs_input" | "confirmed" | string }
+export interface BankAnswer { key: string; question: string; hint: string; answer: string }
+export interface Packet { job: Job; resume: DocumentRec | null; coverLetter: DocumentRec | null; answers: JobAnswer[]; blockers: string[]; followUpDays: number }
+export interface QueueItem { job: Job; resumeApproved: boolean; coverLetterApproved: boolean; answersNeedingInput: number; blockers: string[] }
+export type Decision = "send" | "approve" | "changes" | "later" | "reject";

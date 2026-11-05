@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   Accomplishment, AppInfo, Certification, Contact, DashboardStats, DocumentImportResult, Experience, Interview, Job,
-  AiSettings, AiUsageSummary, Generated, PreparedGeneration, Education, ImportReport, JobSource, RunSummary, SearchRun, SearchSettings, JobDetail, JobDraft, LogEntry, Preferences, ProfileBasics, ProfileBundle, Reminder, SaveJobResult, Skill, StatusChange,
+  AiSettings, AiUsageSummary, BankAnswer, Decision, JobAnswer, Packet, QueueItem, Generated, PreparedGeneration, Education, ImportReport, JobSource, RunSummary, SearchRun, SearchSettings, JobDetail, JobDraft, LogEntry, Preferences, ProfileBasics, ProfileBundle, Reminder, SaveJobResult, Skill, StatusChange,
 } from "./types";
 
 /** True when running inside the Tauri shell (false in a plain browser tab). */
@@ -74,6 +74,16 @@ export const api = {
   openDocumentPdf: (id: number) => call<void>("open_document_pdf", { id }),
   saveDocumentCopy: (id: number, format: "pdf" | "docx", dest: string) => call<void>("save_document_copy", { id, format, dest }),
   revealDocument: (id: number) => call<void>("reveal_document", { id }),
+
+  reviewQueue: () => call<QueueItem[]>("review_queue"),
+  applicationPacket: (jobId: number) => call<Packet>("application_packet", { jobId }),
+  decideJob: (jobId: number, decision: Decision, note: string) => call<Job>("decide_job", { jobId, decision, note }),
+  saveJobAnswer: (answer: JobAnswer) => call<number>("save_job_answer", { answer }),
+  deleteJobAnswer: (id: number) => call<void>("delete_job_answer", { id }),
+  answerBank: () => call<BankAnswer[]>("answer_bank"),
+  saveBankAnswer: (key: string, answer: string) => call<void>("save_bank_answer", { key, answer }),
+  startApplication: (jobId: number) => call<string>("start_application", { jobId }),
+  setFollowUpDays: (days: number) => call<void>("set_follow_up_days", { days }),
   runDiscovery: (sourceId?: number) => call<RunSummary[]>("run_discovery", { sourceId: sourceId ?? null }),
 
   exportJobs: (path: string, format: "csv" | "xlsx") => call<number>("export_jobs", { path, format }),

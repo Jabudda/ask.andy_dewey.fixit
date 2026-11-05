@@ -11,6 +11,7 @@ import { Profile } from "./pages/Profile";
 import { Preferences } from "./pages/Preferences";
 import { DataLogs } from "./pages/DataLogs";
 import { Discovery } from "./pages/Discovery";
+import { ReviewQueue } from "./pages/ReviewQueue";
 import type { RunSummary } from "./lib/types";
 import logo from "./assets/logo.svg";
 import { useToast } from "./components/ui";
@@ -21,6 +22,7 @@ export type Route =
   | { page: "job"; jobId: number }
   | { page: "import" }
   | { page: "search" }
+  | { page: "queue"; jobId?: number }
   | { page: "profile" }
   | { page: "prefs" }
   | { page: "data" };
@@ -29,6 +31,7 @@ export type Nav = (r: Route) => void;
 const NAV: [Route["page"], string, string][] = [
   ["dashboard", "Dashboard", "◧"],
   ["jobs", "Opportunities", "☰"],
+  ["queue", "Review queue", "✓"],
   ["search", "Job search", "⌕"],
   ["import", "Add a job", "＋"],
   ["profile", "Career profile", "◉"],
@@ -126,6 +129,7 @@ export function App() {
           {route.page === "job" && <JobDetail id={route.jobId} go={go} />}
           {route.page === "import" && <ImportJob go={go} />}
           {route.page === "search" && <Discovery go={go} />}
+          {route.page === "queue" && <ReviewQueue go={go} initialJobId={route.jobId} />}
           {route.page === "profile" && <Profile />}
           {route.page === "prefs" && <Preferences />}
           {route.page === "data" && <DataLogs />}

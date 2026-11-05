@@ -1,5 +1,6 @@
 pub mod command_center;
 pub mod ai;
+pub mod application;
 pub mod commands;
 pub mod connectors;
 pub mod discovery;
@@ -108,6 +109,15 @@ pub fn run() {
             commands::open_document_pdf,
             commands::save_document_copy,
             commands::reveal_document,
+            commands::review_queue,
+            commands::application_packet,
+            commands::decide_job,
+            commands::save_job_answer,
+            commands::delete_job_answer,
+            commands::answer_bank,
+            commands::save_bank_answer,
+            commands::start_application,
+            commands::set_follow_up_days,
             commands::save_credential,
             commands::delete_credential,
             commands::open_document,

@@ -479,3 +479,45 @@ mod tests {
         assert!(r.suggested_skills.len() >= 5);
     }
 }
+
+// ── Phase 4: review queue & application assistance ──
+use crate::application::{self as app, BankAnswer, JobAnswer, Packet, QueueItem};
+#[tauri::command]
+pub fn review_queue(state: S) -> AppResult<Vec<QueueItem>> {
+    app::queue(&*state.conn()?)
+}
+#[tauri::command]
+pub fn application_packet(state: S, job_id: i64) -> AppResult<Packet> {
+    app::packet(&*state.conn()?, job_id)
+}
+#[tauri::command]
+pub fn decide_job(state: S, job_id: i64, decision: String, note: String) -> AppResult<Job> {
+    app::decide(&*state.conn()?, job_id, &decision, &note)
+}
+#[tauri::command]
+pub fn save_job_answer(state: S, answer: JobAnswer) -> AppResult<i64> {
+    app::save_answer(&*state.conn()?, &answer)
+}
+#[tauri::command]
+pub fn delete_job_answer(state: S, id: i64) -> AppResult<()> {
+    app::delete_answer(&*state.conn()?, id)
+}
+#[tauri::command]
+pub fn answer_bank(state: S) -> AppResult<Vec<BankAnswer>> {
+    app::answer_bank(&*state.conn()?)
+}
+#[tauri::command]
+pub fn save_bank_answer(state: S, key: String, answer: String) -> AppResult<()> {
+    app::save_bank_answer(&*state.conn()?, &key, &answer)
+}
+/// Opens the official application page in your browser. The app never submits anything itself.
+#[tauri::command]
+pub fn start_application(state: S, job_id: i64) -> AppResult<String> {
+    let url = app::start_application(&*state.conn()?, job_id)?;
+    std::process::Command::new("open").arg(&url).spawn().map_err(AppError::other)?;
+    Ok(url)
+}
+#[tauri::command]
+pub fn set_follow_up_days(state: S, days: i64) -> AppResult<()> {
+    app::set_follow_up_days(&*state.conn()?, days)
+}

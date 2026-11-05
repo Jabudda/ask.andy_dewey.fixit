@@ -8,7 +8,22 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, database 
 
 ---
 
-## Phase 3 status (this release): tailored resumes and cover letters
+## Phase 4 status (this release): application assistance
+
+| Area | What works | Tested |
+|---|---|---|
+| Review queue | One screen for every job with documents: Ready to send, Waiting for your decision, Approved, Applying now | ✓ |
+| Application packet | Job, compatibility score, approved resume and cover letter, and proposed answers, with what still blocks approval | ✓ |
+| Decisions | Approve, Request changes (note required), Save for later, Pass on this job | ✓ |
+| Proposed answers | Standard questions answered only from your standard answers, profile, preferences or the posting; anything else is marked "needs your answer" | ✓ |
+| Approval gate | A job can't be approved without an approved resume, approved cover letter (if any) and every answer written; it can't be marked Submitted without that approval | ✓ |
+| Applying | "Open the application page" opens the employer's official site; Copy buttons for each answer | |
+| Confirmation and follow-up | Submitted needs the employer's confirmation; a follow-up reminder is added automatically (7 days by default) | ✓ |
+| Tracker import | Applications you sent before the app existed are imported as history and skip the approval gate | ✓ |
+
+Not yet: filling in application forms in the browser automatically, and opt-in read-only email monitoring. The app never submits an application itself.
+
+## Phase 3 status: tailored resumes and cover letters
 
 | Area | What works |
 |---|---|

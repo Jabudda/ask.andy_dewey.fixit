@@ -492,7 +492,7 @@ fn import_tracker(cx: &Ctx, r: &mut ImportReport, tracker: &Path) -> AppResult<V
 
         if action == "added" {
             for st in status_path(&stage, &phase, applied.is_some()) {
-                db::change_status(
+                db::record_imported_status(
                     cx.c,
                     &StatusChange {
                         job_id: id,
