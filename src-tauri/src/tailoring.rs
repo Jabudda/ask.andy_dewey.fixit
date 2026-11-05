@@ -183,7 +183,7 @@ pub fn system_prompt(kind: &str, style_notes: &str) -> String {
          9. When you name a skill or tool, include in `sources` the matching \"Verified skill\" fact (K…) as well as the bullet that shows it.\n\
          10. Keep quantities and actions exactly as the facts state them: one workflow stays one workflow (never \"workflows\"), and a thing the candidate designed or built is described as designed or built (do not turn it into an ongoing \"automate\" or \"deliver\").\n\
          11. If a <candidate_context> block is present, it is the candidate's own background on this application (for example, that they already work for this employer). Trust it when framing the document and your notes, and do not contradict it. It is not a citable fact: never quote it in the document, and never include pay figures.\n\
-         12. If a <company_language> block is present, it holds the employer's own words from its website (facts W1, W2…). Echo a few of these terms naturally so the document speaks the employer's language, but only where a candidate fact genuinely connects to them: cite that candidate fact as well as the W fact. A W fact can support a statement about the employer (its mission, values or services), never a claim about the candidate. Do not say the candidate holds a value or did work the candidate facts do not show, do not copy more than a short phrase verbatim, and do not stuff keywords (resume: at most 3 or 4 company terms in total, mostly in the headline, summary and the most relevant bullets; cover letter: 2 to 4, mostly in the opening and closing). The skills list stays verified skills only. In notes_for_candidate, name the company terms you used.\n",
+         12. If a <company_language> block is present, it holds the employer's own words from its website (facts W1, W2…). Echo a few of these terms naturally so the document speaks the employer's language, but only where a candidate fact genuinely connects to them: cite that candidate fact as well as the W fact. A W fact can support a statement about the employer (its mission, values or services), never a claim about the candidate. Do not say the candidate holds a value or did work the candidate facts do not show, do not copy more than a short phrase verbatim, and do not stuff keywords (resume: at most 3 or 4 company terms in total, mostly in the headline, summary and the most relevant bullets; cover letter: 2 to 4, mostly in the opening and closing). The skills list stays verified skills only. Weave the terms in silently: never say or imply that wording comes from the employer (no \"as the company puts it\", \"in line with how X describes…\", \"echoing X's value of…\"). In the resume, do not name the employer you are applying to at all. In notes_for_candidate, name the company terms you used.\n",
         BANNED_PHRASES.join("; ")
     );
     if kind == "resume" {
@@ -350,6 +350,22 @@ fn company_only(loc: &str, line: &Line, out: &mut Vec<Finding>) {
     }
 }
 
+/// A resume names the employer being applied to ("…in line with how Fortive describes its way of
+/// working"): unusual on a resume and it reads as copied. Fine when the candidate has worked there.
+fn names_target_employer(loc: &str, text: &str, job: &Job, pos: &[PositionRef], out: &mut Vec<Finding>) {
+    if text.trim().is_empty() || pos.iter().any(|p| crate::company::mentions_employer(&p.exp.employer, &job.draft.employer)) {
+        return;
+    }
+    if crate::company::mentions_employer(text, &job.draft.employer) {
+        out.push(Finding {
+            severity: "review".into(),
+            location: loc.into(),
+            text: text.chars().take(160).collect(),
+            message: format!("Names {}, the employer you're applying to — resumes usually don't, and it can read as copied from their website", job.draft.employer),
+        });
+    }
+}
+
 /// The term is one of the candidate's verified skills (a true claim even if a bullet was cited instead).
 fn is_verified_skill(facts: &[Fact], term: &str) -> bool {
     let t = term.to_lowercase();
@@ -371,6 +387,8 @@ pub fn check_resume(c: &ResumeContent, facts: &[Fact], skills: &[Skill], profile
     let extra = format!("{} {}", job.draft.title, job.draft.employer);
     check_line("Summary", &c.summary, facts, profile_evidence, &extra, &mut out);
     company_only("Summary", &c.summary, &mut out);
+    names_target_employer("Summary", &c.summary.text, job, pos, &mut out);
+    names_target_employer("Headline", &c.headline, job, pos, &mut out);
     if !c.headline.trim().is_empty() {
         // The headline is short and uncited: check it for unverified tools and numbers only.
         let mut tmp = vec![];
@@ -392,6 +410,7 @@ pub fn check_resume(c: &ResumeContent, facts: &[Fact], skills: &[Skill], profile
         for (i, b) in p.bullets.iter().enumerate() {
             check_line(&format!("{label}, bullet {}", i + 1), b, facts, profile_evidence, &extra, &mut out);
             company_only(&format!("{label}, bullet {}", i + 1), b, &mut out);
+            names_target_employer(&format!("{label}, bullet {}", i + 1), &b.text, job, pos, &mut out);
         }
     }
     out
@@ -717,6 +736,21 @@ pub(crate) mod tests {
         let out = check_resume(&r, &f, &p.skills, &ev, &job(), &positions(&p));
         assert!(!out.iter().any(|x| x.message.starts_with("Cites only")), "{out:?}");
         assert!(system_prompt("cover_letter", "").contains("12. If a <company_language>"));
+        assert!(system_prompt("resume", "").contains("never say or imply that wording comes from the employer"));
+        // Naming the target employer in a resume is flagged for review, unless the candidate worked there.
+        let mut j = job();
+        j.draft.employer = "Fortive".into();
+        let r: ResumeContent = serde_json::from_value(serde_json::json!({
+            "headline": "", "summary": {"text": "Applies continuous improvement, in line with how Fortive describes its way of working", "sources": ["S1"]},
+            "skills": [], "positions": [], "projects": [], "notes_for_candidate": ""
+        })).unwrap();
+        let out = check_resume(&r, &f, &p.skills, &ev, &j, &positions(&p));
+        assert!(out.iter().any(|x| x.severity == "review" && x.message.starts_with("Names Fortive")), "{out:?}");
+        j.draft.employer = p.experience[0].employer.clone();
+        let mut r2 = r.clone();
+        r2.summary.text = format!("Six years at {}", p.experience[0].employer);
+        let out = check_resume(&r2, &f, &p.skills, &ev, &j, &positions(&p));
+        assert!(!out.iter().any(|x| x.message.starts_with("Names ")), "internal candidates may name their employer: {out:?}");
     }
 
     #[test]

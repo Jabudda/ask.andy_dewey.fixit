@@ -408,8 +408,9 @@ const CTA_STARTS: [&str; 24] = [
 /// Words addressed to the site's visitor, as in forms and sign-up prompts.
 const VISITOR_WORDS: [&str; 12] = ["you", "your", "you're", "you'll", "yours", "please", "enter", "email", "we'll", "what's", "per", "submit"];
 /// Words that leave a phrase as a sentence fragment when they start or end it.
-const FRAGMENT_EDGES: [&str; 18] = [
+const FRAGMENT_EDGES: [&str; 22] = [
     "though", "although", "many", "much", "say", "says", "comes", "next", "do", "does", "did", "let", "lets", "let's",
+    "like", "looks", "look", "seems",
     "we're", "you're", "they're", "it's",
 ];
 const NOISE: [&str; 39] = [
