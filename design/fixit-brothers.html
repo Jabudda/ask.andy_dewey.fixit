@@ -1,0 +1,395 @@
+<title>The Fixit Brothers</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Patrick+Hand&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Courier+Prime:wght@400;700&display=swap">
+<style>
+/* Layout: an interoffice memo that opens into a six-panel comic strip, read left to right like the workflow itself. */
+:root {
+  --paper: #F7F3E8;      /* memo paper */
+  --panel: #FFFDF7;
+  --ink: #1B2433;
+  --ink-soft: #4A5568;
+  --navy: #173A63;
+  --teal: #0E7C74;
+  --amber: #F5A93B;
+  --coral: #E8774A;
+  --manila: #E9D3A0;
+  --caption: #FFE7A3;
+  --skin: #F2C9A0;
+  --skin-2: #C98F65;
+  --pants: #3D4A5C;
+  --white: #FFFFFF;
+  --screen: #DCEFF0;
+  --stamp: #C8352B;
+  --rule: #D8CFBA;
+  --display: "Luckiest Guy", "Arial Black", Impact, sans-serif;
+  --hand: "Patrick Hand", "Comic Sans MS", "Chalkboard SE", cursive;
+  --body: "Atkinson Hyperlegible", -apple-system, "Segoe UI", sans-serif;
+  --mono: "Courier Prime", "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #10161F; --panel: #19212D; --ink: #EDE8DC; --ink-soft: #AEB7C4; --navy: #8DB4E2; --teal: #52C7BB;
+  --manila: #5A4A2A; --caption: #6B5520; --pants: #56657A; --white: #F4F1EA; --screen: #22424A; --stamp: #FF6B5E; --rule: #2E3A4A;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --paper: #10161F; --panel: #19212D; --ink: #EDE8DC; --ink-soft: #AEB7C4; --navy: #8DB4E2; --teal: #52C7BB;
+  --manila: #5A4A2A; --caption: #6B5520; --pants: #56657A; --white: #F4F1EA; --screen: #22424A; --stamp: #FF6B5E; --rule: #2E3A4A;
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.5; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 28px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* memo header */
+.memo { font-family: var(--mono); border: 2px solid var(--ink); background: var(--panel); padding: 18px 22px; position: relative; display: grid; gap: 14px; }
+.memo-top { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; border-bottom: 2px solid var(--ink); padding-bottom: 8px; }
+.memo-top strong { letter-spacing: .18em; font-size: 15px; }
+.memo-top span { font-size: 13px; color: var(--ink-soft); }
+.memo dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 0; font-size: 15px; }
+.memo dt { font-weight: 700; letter-spacing: .08em; }
+.memo dd { margin: 0; min-width: 0; }
+h1 { font-family: var(--display); font-weight: 400; font-size: clamp(40px, 7vw, 76px); line-height: .95; margin: 6px 0 0; letter-spacing: .01em; color: var(--navy); text-wrap: balance; }
+h1 em { font-style: normal; color: var(--coral); }
+.lede { font-family: var(--body); font-size: 18px; max-width: 62ch; margin: 0; }
+.route { position: absolute; right: 18px; top: 54px; transform: rotate(6deg); border: 3px solid var(--stamp); color: var(--stamp); font-family: var(--display); font-size: 20px; padding: 4px 10px; letter-spacing: .06em; opacity: .85; }
+@media (max-width: 640px) { .route { position: static; transform: rotate(-2deg); justify-self: start; } }
+
+/* org chart */
+h2 { font-family: var(--display); font-weight: 400; font-size: 32px; color: var(--teal); margin: 40px 0 14px; letter-spacing: .02em; }
+.org { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 860px) { .org { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.badge { background: var(--panel); border: 2px solid var(--ink); padding: 12px 12px 14px; display: grid; gap: 4px; justify-items: center; text-align: center; position: relative; }
+.badge::before { content: ""; position: absolute; top: -9px; left: 50%; width: 38px; height: 14px; margin-left: -19px; background: var(--manila); border: 2px solid var(--ink); border-radius: 3px; }
+.badge svg { width: 110px; height: 150px; }
+.badge .name { font-family: var(--display); font-size: 22px; letter-spacing: .03em; color: var(--navy); }
+.badge .title { font-family: var(--mono); font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-soft); }
+.badge .motto { font-family: var(--hand); font-size: 20px; color: var(--coral); }
+.badge.boss { background: var(--caption); }
+
+/* comic strip */
+.strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 760px) { .strip { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 3px solid var(--ink); display: grid; grid-template-rows: auto auto 1fr auto; min-width: 0; }
+.cap { background: var(--caption); border-bottom: 3px solid var(--ink); padding: 6px 12px; font-family: var(--hand); font-size: 20px; display: flex; gap: 10px; align-items: baseline; }
+.cap b { font-family: var(--display); font-weight: 400; font-size: 20px; color: var(--navy); letter-spacing: .04em; }
+.scene { display: block; width: 100%; height: auto; border-bottom: 2px dashed var(--rule); }
+.talk { padding: 12px 14px 4px; display: grid; gap: 10px; align-content: start; }
+.bubble { font-family: var(--hand); font-size: 20px; line-height: 1.25; background: var(--white); color: #1B2433; border: 2px solid var(--ink); border-radius: 18px; padding: 8px 14px; position: relative; max-width: 92%; }
+.bubble::after { content: ""; position: absolute; top: -10px; left: 26px; width: 16px; height: 16px; background: var(--white); border-left: 2px solid var(--ink); border-top: 2px solid var(--ink); transform: rotate(45deg) skew(8deg, 8deg); }
+.bubble.right { justify-self: end; }
+.bubble.right::after { left: auto; right: 26px; }
+.who { font-family: var(--display); font-size: 14px; letter-spacing: .06em; color: var(--teal); display: block; }
+.bubble.whisper { border-style: dashed; }
+.fact { margin: 8px 14px 14px; padding: 8px 10px; font-family: var(--mono); font-size: 14px; border-left: 4px solid var(--teal); background: color-mix(in srgb, var(--teal) 10%, transparent); }
+.fact b { letter-spacing: .08em; }
+
+.foot { margin-top: 36px; font-family: var(--mono); font-size: 14px; color: var(--ink-soft); display: flex; flex-wrap: wrap; gap: 6px 22px; border-top: 2px solid var(--ink); padding-top: 10px; }
+
+/* gentle bob for the brothers in the org chart */
+@media (prefers-reduced-motion: no-preference) {
+  .badge:hover svg { animation: bob .6s ease-in-out 2; }
+  @keyframes bob { 50% { transform: translateY(-6px) rotate(-2deg); } }
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- DEWEY: tall, glasses, swoopy hair, teal tie -->
+    <symbol id="dewey" viewBox="0 0 120 220">
+      <rect x="44" y="150" width="13" height="60" rx="6" fill="var(--pants)"/>
+      <rect x="63" y="150" width="13" height="60" rx="6" fill="var(--pants)"/>
+      <ellipse cx="47" cy="211" rx="13" ry="6" fill="var(--ink)"/>
+      <ellipse cx="73" cy="211" rx="13" ry="6" fill="var(--ink)"/>
+      <path d="M32 98 Q60 84 88 98 L92 158 L28 158 Z" fill="#CFE3F2" stroke="var(--ink)" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M33 102 Q20 128 26 154" fill="none" stroke="#CFE3F2" stroke-width="12" stroke-linecap="round"/>
+      <path d="M33 102 Q20 128 26 154" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linecap="round" opacity=".5"/>
+      <path d="M87 102 Q100 128 94 154" fill="none" stroke="#CFE3F2" stroke-width="12" stroke-linecap="round"/>
+      <circle cx="26" cy="156" r="7" fill="var(--skin)" stroke="var(--ink)" stroke-width="2"/>
+      <circle cx="94" cy="156" r="7" fill="var(--skin)" stroke="var(--ink)" stroke-width="2"/>
+      <path d="M60 94 L53 106 L60 142 L67 106 Z" fill="#0E7C74" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/>
+      <rect x="53" y="80" width="14" height="14" fill="var(--skin)"/>
+      <circle cx="60" cy="54" r="30" fill="var(--skin)" stroke="var(--ink)" stroke-width="3"/>
+      <path d="M30 50 Q34 16 64 20 Q92 24 90 50 Q76 30 52 38 Q42 40 30 50 Z" fill="#5B3A22" stroke="var(--ink)" stroke-width="2"/>
+      <circle cx="49" cy="56" r="9" fill="#FFFFFF" stroke="var(--ink)" stroke-width="3"/>
+      <circle cx="71" cy="56" r="9" fill="#FFFFFF" stroke="var(--ink)" stroke-width="3"/>
+      <line x1="58" y1="56" x2="62" y2="56" stroke="var(--ink)" stroke-width="3"/>
+      <circle cx="50" cy="57" r="3" fill="#1B2433"/><circle cx="72" cy="57" r="3" fill="#1B2433"/>
+      <path d="M50 72 Q60 79 70 72" fill="none" stroke="#1B2433" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="30" cy="58" r="5" fill="var(--skin)" stroke="var(--ink)" stroke-width="2"/>
+    </symbol>
+
+    <!-- HOWE: round, mustache, coral sweater vest, pencil behind the ear -->
+    <symbol id="howe" viewBox="0 0 120 220">
+      <rect x="40" y="168" width="15" height="42" rx="6" fill="var(--pants)"/>
+      <rect x="65" y="168" width="15" height="42" rx="6" fill="var(--pants)"/>
+      <ellipse cx="45" cy="211" rx="14" ry="6" fill="var(--ink)"/>
+      <ellipse cx="75" cy="211" rx="14" ry="6" fill="var(--ink)"/>
+      <ellipse cx="60" cy="134" rx="42" ry="44" fill="#FFFFFF" stroke="var(--ink)" stroke-width="3"/>
+      <path d="M24 116 Q60 104 96 116 Q104 150 88 172 Q60 184 32 172 Q16 150 24 116 Z" fill="#E8774A" stroke="var(--ink)" stroke-width="3"/>
+      <path d="M48 106 L60 128 L72 106" fill="#FFFFFF" stroke="var(--ink)" stroke-width="2"/>
+      <path d="M22 120 Q8 140 14 162" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round"/>
+      <path d="M98 120 Q112 140 106 162" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round"/>
+      <circle cx="14" cy="164" r="8" fill="var(--skin)" stroke="var(--ink)" stroke-width="2"/>
+      <circle cx="106" cy="164" r="8" fill="var(--skin)" stroke="var(--ink)" stroke-width="2"/>
+      <g fill="#1B2433"><circle cx="60" cy="132" r="2.5"/><circle cx="60" cy="146" r="2.5"/><circle cx="60" cy="160" r="2.5"/></g>
+      <circle cx="60" cy="66" r="30" fill="var(--skin)" stroke="var(--ink)" stroke-width="3"/>
+      <path d="M31 60 Q30 44 38 40 L40 58 Z M89 60 Q90 44 82 40 L80 58 Z" fill="#8A8F98" stroke="var(--ink)" stroke-width="2"/>
+      <rect x="84" y="34" width="6" height="30" rx="2" transform="rotate(28 87 49)" fill="#F5A93B" stroke="var(--ink)" stroke-width="2"/>
+      <circle cx="50" cy="64" r="3.2" fill="#1B2433"/><circle cx="70" cy="64" r="3.2" fill="#1B2433"/>
+      <path d="M44 56 Q50 52 55 56 M65 56 Q70 52 76 56" fill="none" stroke="#1B2433" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M42 80 Q50 72 60 78 Q70 72 78 80 Q70 84 60 81 Q50 84 42 80 Z" fill="#6B6F78" stroke="var(--ink)" stroke-width="2"/>
+      <path d="M53 87 Q60 91 67 87" fill="none" stroke="#1B2433" stroke-width="2.5" stroke-linecap="round"/>
+    </symbol>
+
+    <!-- WILLIE: short, green visor, amber bow tie, all business -->
+    <symbol id="willie" viewBox="0 0 120 220">
+      <rect x="46" y="170" width="12" height="40" rx="5" fill="var(--pants)"/>
+      <rect x="62" y="170" width="12" height="40" rx="5" fill="var(--pants)"/>
+      <ellipse cx="50" cy="211" rx="12" ry="6" fill="var(--ink)"/>
+      <ellipse cx="72" cy="211" rx="12" ry="6" fill="var(--ink)"/>
+      <path d="M36 128 Q60 118 84 128 L86 174 L34 174 Z" fill="#F4E9C8" stroke="var(--ink)" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M37 132 Q26 150 32 170" fill="none" stroke="#F4E9C8" stroke-width="11" stroke-linecap="round"/>
+      <path d="M83 132 Q94 150 88 170" fill="none" stroke="#F4E9C8" stroke-width="11" stroke-linecap="round"/>
+      <circle cx="32" cy="171" r="6.5" fill="var(--skin-2)" stroke="var(--ink)" stroke-width="2"/>
+      <circle cx="88" cy="171" r="6.5" fill="var(--skin-2)" stroke="var(--ink)" stroke-width="2"/>
+      <path d="M48 128 L60 134 L48 140 Z M72 128 L60 134 L72 140 Z" fill="#F5A93B" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/>
+      <circle cx="60" cy="134" r="3.5" fill="#F5A93B" stroke="var(--ink)" stroke-width="2"/>
+      <circle cx="60" cy="96" r="26" fill="var(--skin-2)" stroke="var(--ink)" stroke-width="3"/>
+      <path d="M36 86 Q60 70 84 86 L96 80 Q98 92 84 92 Q60 84 36 92 Z" fill="#2F8F5B" stroke="var(--ink)" stroke-width="2" opacity=".95"/>
+      <path d="M38 80 Q60 62 82 80" fill="none" stroke="#2A1D14" stroke-width="7" stroke-linecap="round"/>
+      <path d="M48 96 L56 98 M64 98 L72 96" stroke="#1B2433" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="52" cy="102" r="2.8" fill="#1B2433"/><circle cx="68" cy="102" r="2.8" fill="#1B2433"/>
+      <path d="M52 113 L68 113" stroke="#1B2433" stroke-width="3" stroke-linecap="round"/>
+    </symbol>
+
+    <!-- ANDY: the boss, coffee in hand -->
+    <symbol id="andy" viewBox="0 0 120 220">
+      <rect x="44" y="152" width="13" height="58" rx="6" fill="#26303D"/>
+      <rect x="63" y="152" width="13" height="58" rx="6" fill="#26303D"/>
+      <ellipse cx="47" cy="211" rx="13" ry="6" fill="var(--ink)"/>
+      <ellipse cx="73" cy="211" rx="13" ry="6" fill="var(--ink)"/>
+      <path d="M28 100 Q60 84 92 100 L94 160 L26 160 Z" fill="#173A63" stroke="var(--ink)" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M50 92 L60 112 L70 92" fill="#FFFFFF" stroke="var(--ink)" stroke-width="2"/>
+      <path d="M30 104 Q18 130 26 156" fill="none" stroke="#173A63" stroke-width="13" stroke-linecap="round"/>
+      <path d="M90 104 Q104 118 98 132" fill="none" stroke="#173A63" stroke-width="13" stroke-linecap="round"/>
+      <circle cx="26" cy="158" r="7" fill="var(--skin)" stroke="var(--ink)" stroke-width="2"/>
+      <rect x="90" y="120" width="20" height="22" rx="3" fill="#F5A93B" stroke="var(--ink)" stroke-width="2.5"/>
+      <path d="M110 125 Q118 131 110 137" fill="none" stroke="var(--ink)" stroke-width="2.5"/>
+      <text x="100" y="136" text-anchor="middle" font-family="Luckiest Guy, Impact, sans-serif" font-size="10" fill="#1B2433">#1</text>
+      <path d="M96 116 Q98 108 96 102 M104 116 Q106 108 104 102" fill="none" stroke="var(--ink-soft)" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+      <circle cx="60" cy="56" r="29" fill="var(--skin)" stroke="var(--ink)" stroke-width="3"/>
+      <path d="M32 50 Q36 24 60 24 Q86 24 88 50 Q78 38 60 38 Q42 38 32 50 Z" fill="#8A8F98" stroke="var(--ink)" stroke-width="2"/>
+      <circle cx="50" cy="58" r="3.2" fill="#1B2433"/><circle cx="70" cy="58" r="3.2" fill="#1B2433"/>
+      <path d="M47 70 Q60 81 73 70" fill="none" stroke="#1B2433" stroke-width="3" stroke-linecap="round"/>
+      <path d="M46 74 Q60 90 74 74 Q72 84 60 86 Q48 84 46 74Z" fill="#8A8F98" opacity=".55"/>
+    </symbol>
+  </defs>
+</svg>
+
+<main class="wrap">
+  <header class="memo">
+    <div class="memo-top"><strong>INTEROFFICE MEMO</strong><span>Dept. of Next Chapters · Form NC-2027</span></div>
+    <dl>
+      <dt>TO:</dt><dd>Andy, The Boss (Milwaukee, remote, coffee-powered)</dd>
+      <dt>FROM:</dt><dd>Dewey, Howe &amp; Willie Fixit</dd>
+      <dt>RE:</dt><dd>What actually happens after you click "Find jobs"</dd>
+    </dl>
+    <span class="route">ROUTE TO BOSS</span>
+    <h1>Meet the <em>Fixit</em> Brothers</h1>
+    <p class="lede">Three brothers, one office, zero invented accomplishments. They find the jobs, write the paperwork and check every word, then hand it all to you. Nothing leaves the building until the boss says so.</p>
+  </header>
+
+  <h2>The org chart</h2>
+  <section class="org" aria-label="The team">
+    <div class="badge">
+      <svg viewBox="0 0 120 220" role="img" aria-label="Dewey Fixit"><use href="#dewey"/></svg>
+      <span class="name">Dewey Fixit</span>
+      <span class="title">VP of Finding Things</span>
+      <span class="motto">"Do we fit it?"</span>
+    </div>
+    <div class="badge">
+      <svg viewBox="0 0 120 220" role="img" aria-label="Howe Fixit"><use href="#howe"/></svg>
+      <span class="name">Howe Fixit</span>
+      <span class="title">Director of Wordsmithing</span>
+      <span class="motto">"How do we fix it?"</span>
+    </div>
+    <div class="badge">
+      <svg viewBox="0 0 120 220" role="img" aria-label="Willie Fixit"><use href="#willie"/></svg>
+      <span class="name">Willie Fixit</span>
+      <span class="title">Chief Fact-Checking Officer</span>
+      <span class="motto">"Will he sign it?"</span>
+    </div>
+    <div class="badge boss">
+      <svg viewBox="0 0 120 220" role="img" aria-label="Andy, the boss"><use href="#andy"/></svg>
+      <span class="name">Andy</span>
+      <span class="title">The Boss · Human in the loop</span>
+      <span class="motto">"Show me before it goes."</span>
+    </div>
+  </section>
+
+  <h2>A day at the office</h2>
+  <section class="strip">
+
+    <!-- 1 DISCOVERY -->
+    <article class="panel">
+      <div class="cap"><b>6:00 AM</b> The scheduler rings. Dewey grabs the binoculars.</div>
+      <svg class="scene" viewBox="0 0 400 220" role="img" aria-label="Dewey scanning a wall of job board monitors with binoculars">
+        <rect x="0" y="180" width="400" height="40" fill="var(--manila)" opacity=".5"/>
+        <g font-family="Courier Prime, monospace" font-size="12" font-weight="700" fill="var(--ink)">
+          <rect x="170" y="22" width="100" height="62" rx="4" fill="var(--screen)" stroke="var(--ink)" stroke-width="3"/><text x="220" y="58" text-anchor="middle">GREENHOUSE</text>
+          <rect x="282" y="22" width="100" height="62" rx="4" fill="var(--screen)" stroke="var(--ink)" stroke-width="3"/><text x="332" y="58" text-anchor="middle">LEVER</text>
+          <rect x="170" y="96" width="100" height="62" rx="4" fill="var(--screen)" stroke="var(--ink)" stroke-width="3"/><text x="220" y="132" text-anchor="middle">USAJOBS</text>
+          <rect x="282" y="96" width="100" height="62" rx="4" fill="var(--screen)" stroke="var(--ink)" stroke-width="3"/><text x="332" y="132" text-anchor="middle">HIMALAYAS</text>
+        </g>
+        <g fill="var(--ink-soft)" font-family="Patrick Hand, cursive" font-size="15">
+          <text x="176" y="176">dup.</text><text x="230" y="176">expired</text><text x="300" y="176">dup.</text><text x="350" y="176">dup.</text>
+        </g>
+        <use href="#dewey" x="20" y="2" width="120" height="218"/>
+        <g transform="translate(57 49)">
+          <rect x="0" y="0" width="22" height="18" rx="6" fill="#1B2433"/><rect x="24" y="0" width="22" height="18" rx="6" fill="#1B2433"/>
+          <rect x="18" y="5" width="10" height="8" fill="#1B2433"/>
+          <circle cx="11" cy="9" r="5" fill="#52C7BB"/><circle cx="35" cy="9" r="5" fill="#52C7BB"/>
+        </g>
+      </svg>
+      <div class="talk">
+        <p class="bubble"><span class="who">DEWEY</span>Do we... fit it? Remote? Hires in Wisconsin? Pays $50k or more? Into the pile you go.</p>
+        <p class="bubble right whisper"><span class="who">DEWEY, MUTTERING</span>Seen it. Seen it. Duplicate. Expired in 2019. Seen it.</p>
+      </div>
+      <p class="fact"><b>REALITY:</b> Every 12 hours the app checks public job APIs, drops non-remote and expired posts, and merges duplicates.</p>
+    </article>
+
+    <!-- 2 SCORING -->
+    <article class="panel">
+      <div class="cap"><b>9:15 AM</b> The Scoring Desk. Dewey weighs every posting.</div>
+      <svg class="scene" viewBox="0 0 400 220" role="img" aria-label="Dewey at a desk with a balance scale weighing a job posting against Andy's profile">
+        <rect x="150" y="150" width="240" height="14" fill="var(--manila)" stroke="var(--ink)" stroke-width="3"/>
+        <rect x="160" y="164" width="12" height="56" fill="var(--manila)" stroke="var(--ink)" stroke-width="3"/>
+        <rect x="368" y="164" width="12" height="56" fill="var(--manila)" stroke="var(--ink)" stroke-width="3"/>
+        <line x1="270" y1="148" x2="270" y2="60" stroke="var(--ink)" stroke-width="4"/>
+        <path d="M250 150 L290 150 L270 134 Z" fill="var(--ink)"/>
+        <line x1="200" y1="72" x2="340" y2="52" stroke="var(--ink)" stroke-width="4"/>
+        <path d="M180 96 Q200 108 220 96 L210 72 L190 72 Z" fill="var(--amber)" stroke="var(--ink)" stroke-width="3"/>
+        <path d="M320 76 Q340 88 360 76 L350 52 L330 52 Z" fill="var(--teal)" stroke="var(--ink)" stroke-width="3"/>
+        <text x="200" y="124" text-anchor="middle" font-family="Patrick Hand, cursive" font-size="15" fill="var(--ink)">posting</text>
+        <text x="340" y="104" text-anchor="middle" font-family="Patrick Hand, cursive" font-size="15" fill="var(--ink)">verified profile</text>
+        <rect x="300" y="116" width="70" height="30" rx="4" fill="#FFFFFF" stroke="var(--ink)" stroke-width="3"/>
+        <text x="335" y="138" text-anchor="middle" font-family="Luckiest Guy, Impact, sans-serif" font-size="20" fill="var(--teal)">77</text>
+        <use href="#dewey" x="10" y="2" width="120" height="218"/>
+      </svg>
+      <div class="talk">
+        <p class="bubble"><span class="who">DEWEY</span>Skills 25, requirements 20, remote 15... This one wants a "Synergy Ninja Rockstar" and says nothing else. Thin posting. Capped at 74.</p>
+        <p class="bubble right"><span class="who">DEWEY</span>And this one? Internal candidate, lateral move. Title alone doesn't decide it. Seventy-seven. Recommended.</p>
+      </div>
+      <p class="fact"><b>REALITY:</b> A 0 to 100 score, explained line by line, using evidence only from Andy's verified profile and master resume.</p>
+    </article>
+
+    <!-- 3 WRITING -->
+    <article class="panel">
+      <div class="cap"><b>10:30 AM</b> The Writing Room. Howe rolls up his sleeves.</div>
+      <svg class="scene" viewBox="0 0 400 220" role="img" aria-label="Howe at a desk with a laptop, surrounded by index cards labelled with fact IDs">
+        <rect x="130" y="150" width="260" height="14" fill="var(--manila)" stroke="var(--ink)" stroke-width="3"/>
+        <rect x="140" y="164" width="12" height="56" fill="var(--manila)" stroke="var(--ink)" stroke-width="3"/>
+        <rect x="370" y="164" width="12" height="56" fill="var(--manila)" stroke="var(--ink)" stroke-width="3"/>
+        <path d="M200 148 L216 96 L300 96 L292 148 Z" fill="var(--navy)" stroke="var(--ink)" stroke-width="3" stroke-linejoin="round"/>
+        <rect x="186" y="146" width="128" height="6" rx="2" fill="var(--ink-soft)"/>
+        <text x="254" y="128" text-anchor="middle" font-family="Courier Prime, monospace" font-size="11" fill="#FFFFFF">CLAUDE API</text>
+        <g font-family="Courier Prime, monospace" font-size="13" font-weight="700" fill="#1B2433">
+          <g transform="rotate(-8 330 40)"><rect x="300" y="24" width="62" height="34" fill="#FFFFFF" stroke="var(--ink)" stroke-width="2"/><text x="331" y="46" text-anchor="middle">E0.11</text></g>
+          <g transform="rotate(6 360 90)"><rect x="330" y="72" width="54" height="34" fill="#FFFFFF" stroke="var(--ink)" stroke-width="2"/><text x="357" y="94" text-anchor="middle">K48</text></g>
+          <g transform="rotate(-4 240 40)"><rect x="212" y="20" width="56" height="34" fill="#FFFFFF" stroke="var(--ink)" stroke-width="2"/><text x="240" y="42" text-anchor="middle">A11</text></g>
+        </g>
+        <use href="#howe" x="10" y="2" width="120" height="218"/>
+      </svg>
+      <div class="talk">
+        <p class="bubble"><span class="who">HOWE</span>How do we fix it? Every line gets a receipt. E0.11, K48, A11. No fact card, no sentence.</p>
+        <p class="bubble right"><span class="who">HOWE</span>And the last letter got rejected. Let's learn something. Lead with results, skip the excuses.</p>
+      </div>
+      <p class="fact"><b>REALITY:</b> Opt-in Claude writes from numbered facts, cites each one, and can learn from an earlier unsuccessful application.</p>
+    </article>
+
+    <!-- 4 FACT CHECK -->
+    <article class="panel">
+      <div class="cap"><b>11:45 AM</b> Room 4B, Fact-Checking. Willie has the stamp.</div>
+      <svg class="scene" viewBox="0 0 400 220" role="img" aria-label="Willie stamping a draft with a red BLOCKED stamp while Howe looks on">
+        <rect x="120" y="150" width="200" height="14" fill="var(--manila)" stroke="var(--ink)" stroke-width="3"/>
+        <rect x="130" y="164" width="12" height="56" fill="var(--manila)" stroke="var(--ink)" stroke-width="3"/>
+        <rect x="298" y="164" width="12" height="56" fill="var(--manila)" stroke="var(--ink)" stroke-width="3"/>
+        <g transform="rotate(-3 220 110)">
+          <rect x="160" y="70" width="120" height="80" fill="#FFFFFF" stroke="var(--ink)" stroke-width="2"/>
+          <g stroke="#9DB4C8" stroke-width="5" stroke-linecap="round"><line x1="174" y1="88" x2="264" y2="88"/><line x1="174" y1="104" x2="250" y2="104"/><line x1="174" y1="120" x2="258" y2="120"/></g>
+          <g transform="rotate(-14 220 112)">
+            <rect x="170" y="96" width="104" height="34" rx="4" fill="none" stroke="var(--stamp)" stroke-width="4"/>
+            <text x="222" y="121" text-anchor="middle" font-family="Luckiest Guy, Impact, sans-serif" font-size="21" fill="var(--stamp)">BLOCKED</text>
+          </g>
+        </g>
+        <g transform="translate(206 8)">
+          <rect x="6" y="0" width="16" height="30" rx="6" fill="#7A4A2A" stroke="var(--ink)" stroke-width="2"/>
+          <rect x="0" y="28" width="28" height="12" rx="2" fill="var(--stamp)" stroke="var(--ink)" stroke-width="2"/>
+        </g>
+        <path d="M200 30 l-8 -8 M246 30 l8 -8 M223 22 l0 -10" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>
+        <use href="#willie" x="20" y="2" width="120" height="218"/>
+        <use href="#howe" x="290" y="2" width="110" height="218"/>
+      </svg>
+      <div class="talk">
+        <p class="bubble right"><span class="who">HOWE</span>Can I say he "automates workflows"? Sounds impressive.</p>
+        <p class="bubble"><span class="who">WILLIE</span>He built ONE workflow. Past tense. Two hours down to 15 minutes, and not a minute more. Also, that em dash goes back in the drawer.</p>
+      </div>
+      <p class="fact"><b>REALITY:</b> The claim checker blocks uncited lines, numbers that aren't in the facts, and skills Andy hasn't verified.</p>
+    </article>
+
+    <!-- 5 APPROVAL -->
+    <article class="panel">
+      <div class="cap"><b>2:00 PM</b> The corner office. Three brothers, one button.</div>
+      <svg class="scene" viewBox="0 0 400 220" role="img" aria-label="Andy at his desk with a big approve button while the three brothers wait in line">
+        <rect x="250" y="150" width="140" height="14" fill="var(--manila)" stroke="var(--ink)" stroke-width="3"/>
+        <rect x="260" y="164" width="12" height="56" fill="var(--manila)" stroke="var(--ink)" stroke-width="3"/>
+        <rect x="368" y="164" width="12" height="56" fill="var(--manila)" stroke="var(--ink)" stroke-width="3"/>
+        <ellipse cx="364" cy="146" rx="22" ry="7" fill="#7A1F18"/>
+        <path d="M342 146 Q342 128 364 126 Q386 128 386 146 Z" fill="var(--stamp)" stroke="var(--ink)" stroke-width="3"/>
+        <text x="362" y="118" text-anchor="middle" font-family="Courier Prime, monospace" font-weight="700" font-size="12" fill="var(--ink)">APPROVE</text>
+        <use href="#dewey" x="0" y="20" width="90" height="200"/>
+        <use href="#howe" x="70" y="22" width="90" height="198"/>
+        <use href="#willie" x="142" y="24" width="90" height="196"/>
+        <use href="#andy" x="212" y="2" width="120" height="218"/>
+      </svg>
+      <div class="talk">
+        <p class="bubble"><span class="who">WILLIE</span>Will he sign it? Only Andy pushes the button. We just hold the folders and look hopeful.</p>
+        <p class="bubble right"><span class="who">ANDY</span>Resume v7, cover letter v2. Approved. Now somebody find me the Save button.</p>
+      </div>
+      <p class="fact"><b>REALITY:</b> Nothing is approved or submitted without Andy. A document with a blocked line can't be approved at all.</p>
+    </article>
+
+    <!-- 6 TRACKING -->
+    <article class="panel">
+      <div class="cap"><b>4:30 PM</b> The whiteboard. Everybody gets a marker.</div>
+      <svg class="scene" viewBox="0 0 400 220" role="img" aria-label="A whiteboard showing the application pipeline and a countdown to January 31, 2027">
+        <rect x="16" y="14" width="368" height="150" rx="6" fill="#FFFFFF" stroke="var(--ink)" stroke-width="3"/>
+        <g font-family="Patrick Hand, cursive" font-size="16" fill="#1B2433">
+          <rect x="30" y="34" width="62" height="30" rx="4" fill="#E3EDF5" stroke="#1B2433" stroke-width="2"/><text x="61" y="54" text-anchor="middle">Found</text>
+          <rect x="102" y="34" width="62" height="30" rx="4" fill="#E3EDF5" stroke="#1B2433" stroke-width="2"/><text x="133" y="54" text-anchor="middle">Docs</text>
+          <rect x="174" y="34" width="76" height="30" rx="4" fill="#FFE7A3" stroke="#1B2433" stroke-width="2"/><text x="212" y="54" text-anchor="middle">Submitted</text>
+          <rect x="260" y="34" width="62" height="30" rx="4" fill="#E3EDF5" stroke="#1B2433" stroke-width="2"/><text x="291" y="54" text-anchor="middle">Interview</text>
+          <rect x="332" y="34" width="42" height="30" rx="4" fill="#CDEBD9" stroke="#1B2433" stroke-width="2"/><text x="353" y="54" text-anchor="middle">Offer</text>
+        </g>
+        <g stroke="#1B2433" stroke-width="2"><line x1="92" y1="49" x2="102" y2="49"/><line x1="164" y1="49" x2="174" y2="49"/><line x1="250" y1="49" x2="260" y2="49"/><line x1="322" y1="49" x2="332" y2="49"/></g>
+        <text x="40" y="104" font-family="Patrick Hand, cursive" font-size="20" fill="#1B2433">Countdown to Jan 31, 2027:</text>
+        <text x="40" y="142" font-family="Luckiest Guy, Impact, sans-serif" font-size="30" fill="#C8352B">88 DAYS</text>
+        <text x="214" y="142" font-family="Patrick Hand, cursive" font-size="18" fill="#0E7C74">(plenty, if we hustle)</text>
+        <rect x="0" y="180" width="400" height="40" fill="var(--manila)" opacity=".5"/>
+        <g transform="scale(.42)"><use href="#dewey" x="80" y="300" width="120" height="220"/><use href="#howe" x="420" y="300" width="120" height="220"/><use href="#willie" x="760" y="300" width="120" height="220"/></g>
+      </svg>
+      <div class="talk">
+        <p class="bubble"><span class="who">DEWEY</span>Follow up in a week if we hear nothing.</p>
+        <p class="bubble"><span class="who">HOWE</span>Thank-you note, drafted. Facts only.</p>
+        <p class="bubble right"><span class="who">WILLIE</span>"Submitted"? Show me the confirmation number first.</p>
+      </div>
+      <p class="fact"><b>REALITY:</b> Every status change is logged. "Submitted" needs Andy's confirmation. Follow-up reminders arrive in Phase 4.</p>
+    </article>
+  </section>
+
+  <footer class="foot">
+    <span>Project Next Chapter · local-first · private by default</span>
+    <span>No accomplishments were invented in the making of this memo.</span>
+  </footer>
+</main>
