@@ -237,6 +237,15 @@ pub fn finish(c: &Connection, docs_dir: &Path, prep: &Prepared, response: &Value
     }
 }
 
+/// Content as it would be stored (cleaned), for telling a real edit from an unchanged save.
+fn normalized(kind: &str, v: &Value) -> Option<Value> {
+    if kind == "resume" {
+        serde_json::from_value::<ResumeContent>(v.clone()).ok().map(tailoring::clean_resume).and_then(|r| serde_json::to_value(r).ok())
+    } else {
+        serde_json::from_value::<CoverLetterContent>(v.clone()).ok().map(tailoring::clean_letter).and_then(|l| serde_json::to_value(l).ok())
+    }
+}
+
 /// Saves the user's edits as a new version (re-rendered and re-checked).
 pub fn save_edit(c: &Connection, docs_dir: &Path, doc_id: i64, content: &Value) -> AppResult<Generated> {
     let d = db::get_document(c, doc_id)?;
@@ -246,6 +255,9 @@ pub fn save_edit(c: &Connection, docs_dir: &Path, doc_id: i64, content: &Value) 
         _ => return Err(AppError::invalid("Only generated documents can be edited here")),
     };
     let job_id = d.job_id.ok_or_else(|| AppError::invalid("Document is not linked to a job"))?;
+    if d.content_json.is_some() && normalized(kind, content) == d.content_json.as_ref().and_then(|v| normalized(kind, v)) {
+        return Err(AppError::invalid("Nothing has changed since this version, so no new version was saved"));
+    }
     let (document, findings, notes) = save_version(c, docs_dir, job_id, kind, content)?;
     Ok(Generated { document, findings, cost_usd: 0.0, served_by_fallback: false, notes_for_candidate: notes })
 }
@@ -346,6 +358,9 @@ mod tests {
         let mut fixed = invented.clone();
         fixed["positions"][0]["bullets"].as_array_mut().unwrap().pop();
         let g2 = save_edit(&c, dir.path(), g.document.id, &fixed).unwrap();
+        // Saving again with no changes does not create another version.
+        let same = g2.document.content_json.clone().unwrap();
+        assert!(save_edit(&c, dir.path(), g2.document.id, &same).unwrap_err().to_string().contains("Nothing has changed"));
         assert_eq!(g2.document.version, 2);
         assert!(g2.findings.iter().all(|f| f.severity != "blocker"), "{:?}", g2.findings);
         let a = approve(&c, g2.document.id, true).unwrap();

@@ -215,9 +215,10 @@ pub fn user_prompt(job: &Job, facts: &[Fact], positions: &[PositionRef]) -> Stri
     let b = job.score_breakdown.clone().unwrap_or_default();
     let list = |v: &[String]| if v.is_empty() { "none".to_string() } else { v.iter().take(12).map(|x| format!("- {x}")).collect::<Vec<_>>().join("\n") };
     format!(
-        "{}{}",
+        "{}{}\n\nToday's date is {}. Dates on or before it are past events, not future ones.",
         candidate_context(job),
-        job_and_facts(job, facts, positions, &b, &list)
+        job_and_facts(job, facts, positions, &b, &list),
+        chrono::Local::now().format("%B %-d, %Y")
     )
 }
 
@@ -646,6 +647,7 @@ pub(crate) mod tests {
         j.draft.internal_candidate = true;
         j.draft.candidate_context = "Lateral move; same pay band.".into();
         let u = user_prompt(&j, &facts, &[]);
+        assert!(u.contains("Today's date is ") && u.contains("past events"), "the model must know today's date");
         assert!(u.starts_with("<candidate_context>"));
         assert!(u.contains("internal candidate") && u.contains("Lateral move; same pay band."));
         assert!(system_prompt("resume", "").contains("11. If a <candidate_context>"));
