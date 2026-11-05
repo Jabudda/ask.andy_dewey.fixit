@@ -743,7 +743,7 @@ mod tests {
 
     #[test]
     fn page_titles_are_split() {
-        assert_eq!(split_page_title("AllOne Health Resources Inc - Manager of Intake"), ("Manager of Intake".into(), "AllOne Health Resources Inc".into(), true));
+        assert_eq!(split_page_title("Acme Care Resources Inc - Manager of Intake"), ("Manager of Intake".into(), "Acme Care Resources Inc".into(), true));
         assert_eq!(split_page_title("Data Analyst | Fabrikam Careers"), ("Data Analyst".into(), "Fabrikam".into(), true));
         assert_eq!(split_page_title("Support Analyst | Litware"), ("Support Analyst".into(), "Litware".into(), false));
         assert_eq!(split_page_title("Operations Coordinator"), ("Operations Coordinator".into(), String::new(), false));

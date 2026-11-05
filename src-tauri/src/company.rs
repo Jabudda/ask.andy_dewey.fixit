@@ -120,7 +120,7 @@ pub fn not_company_site(host: &str) -> Option<&'static str> {
     NOT_COMPANY_SITES.iter().find(|s| h.contains(*s)).copied()
 }
 
-/// Words of the employer's name that identify it ("truv", "allone"), skipping generic ones.
+/// Words of the employer's name that identify it ("truv", "acme"), skipping generic ones.
 pub fn name_tokens(employer: &str) -> Vec<String> {
     const GENERIC: [&str; 24] = [
         "health", "group", "services", "service", "solutions", "technologies", "technology", "systems", "global",
@@ -143,7 +143,7 @@ fn compact(s: &str) -> String {
     s.to_lowercase().chars().filter(|c| c.is_alphanumeric()).collect()
 }
 
-/// The text names the employer (spacing and punctuation ignored: "AllOne", "All One", "allone.com").
+/// The text names the employer (spacing and punctuation ignored: "AcmeCare", "Acme Care", "acmecare.com").
 pub fn mentions_employer(text: &str, employer: &str) -> bool {
     let t = compact(text);
     name_tokens(employer).iter().any(|n| t.contains(n.as_str()))
@@ -771,16 +771,16 @@ mod tests {
         for h in ["himalayas.app", "jobicy.com", "www.forbes.com", "www.linkedin.com", "boards.greenhouse.io", "jobs.dayforcehcm.com"] {
             assert!(not_company_site(h).is_some(), "{h}");
         }
-        for h in ["allonehealth.com", "www.truv.com", "starlink.com", "maze.co"] {
+        for h in ["acmecare.test", "www.truv.com", "starlink.com", "maze.co"] {
             assert!(not_company_site(h).is_none(), "{h}");
         }
     }
 
     #[test]
     fn pages_must_name_the_employer() {
-        assert_eq!(name_tokens("AllOne Health Resources Inc"), vec!["allone"]);
+        assert_eq!(name_tokens("AcmeCare Health Resources Inc"), vec!["acmecare"]);
         assert_eq!(name_tokens("Health Resources"), vec!["healthresources"]);
-        assert!(mentions_employer("Welcome to All One Health", "AllOne Health Resources Inc"));
+        assert!(mentions_employer("Welcome to Acme Care Health", "AcmeCare Health Resources Inc"));
         assert!(mentions_employer("https://www.truv.com/ Truv | Income verification", "Truv"));
         assert!(!mentions_employer("Himalayas is the leading remote job board", "Fortive"));
         // Generic words alone don't count as a mention.
