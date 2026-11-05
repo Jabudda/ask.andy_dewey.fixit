@@ -45,7 +45,26 @@ code, .mono { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size:
 .app { display: grid; grid-template-columns: 220px 1fr; height: 100vh; }
 .sidebar { background: var(--surface-1); border-right: 1px solid var(--border); padding: 18px 12px; display: flex; flex-direction: column; gap: 2px; }
 .brand { display: flex; gap: 10px; align-items: center; padding: 4px 8px 18px; }
-.brand-mark { width: 44px; height: 44px; flex: none; margin: -4px; }
+.brand-mark { width: 44px; height: 44px; flex: none; margin: -4px; display: block; transition: transform .25s ease; }
+.logo-story { position: relative; border-radius: 12px; outline: none; cursor: help; }
+.logo-story:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+.logo-story:hover .brand-mark, .logo-story:focus-visible .brand-mark { transform: scale(1.08) rotate(-3deg); }
+.logo-story-card {
+  position: absolute; left: calc(100% + 14px); top: -8px; z-index: 50; width: 340px;
+  background: var(--surface-2, var(--surface-1)); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .35);
+  opacity: 0; visibility: hidden; transform: translateX(-6px);
+  transition: opacity .2s ease, transform .2s ease, visibility .2s;
+  pointer-events: none;
+}
+.logo-story:hover .logo-story-card, .logo-story:focus-within .logo-story-card { opacity: 1; visibility: visible; transform: none; }
+.logo-story-card > img { float: right; margin: -6px -6px 4px 8px; }
+.logo-story-card h3 { margin: 0 0 10px; font-size: 15px; }
+.logo-story-card dl { margin: 0; clear: both; }
+.logo-story-card dt { font-weight: 700; font-size: 13px; color: var(--accent); margin-top: 8px; }
+.logo-story-card dd { margin: 2px 0 0; font-size: 13px; line-height: 1.45; color: var(--text-secondary); }
+@media (prefers-reduced-motion: reduce) { .brand-mark, .logo-story-card { transition: none; } }
 .brand-name { font-weight: 700; font-size: 15px; }
 .brand-sub { color: var(--text-muted); font-size: 12px; }
 .nav-item { all: unset; cursor: pointer; display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; color: var(--text-secondary); }

@@ -93,7 +93,20 @@ export function App() {
       <div className="app">
         <nav className="sidebar">
           <div className="brand">
-            <img className="brand-mark" src={logo} alt="" width={44} height={44} />
+            <div className="logo-story" tabIndex={0} aria-describedby="logo-story-card">
+              <img className="brand-mark" src={logo} alt="Next Chapter logo" width={44} height={44} />
+              <div className="logo-story-card" id="logo-story-card" role="tooltip">
+                <img src={logo} alt="" width={72} height={72} />
+                <h3>The story behind the logo</h3>
+                <dl>
+                  <dt>The open book</dt><dd>Your story so far. The lines on the left page are the career you have already written.</dd>
+                  <dt>The turning page</dt><dd>The next chapter, lifting up and to the right, the direction we read as forward.</dd>
+                  <dt>The blank page</dt><dd>Left empty on purpose: the chapter you have not written yet.</dd>
+                  <dt>The rising sun</dt><dd>A new start that grows out of the book's spine, out of what you have already done, not a clean break from it.</dd>
+                  <dt>The colors</dt><dd>Navy and teal for steadiness and calm; amber and coral for optimism, and a solid base to stand on.</dd>
+                </dl>
+              </div>
+            </div>
             <div><div className="brand-name">Next Chapter</div><div className="brand-sub">Job search, under your control</div></div>
           </div>
           {NAV.map(([page, label, icon]) => (
