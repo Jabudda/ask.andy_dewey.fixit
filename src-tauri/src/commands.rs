@@ -521,3 +521,47 @@ pub fn start_application(state: S, job_id: i64) -> AppResult<String> {
 pub fn set_follow_up_days(state: S, days: i64) -> AppResult<()> {
     app::set_follow_up_days(&*state.conn()?, days)
 }
+
+// ── company research ──
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompanyResearchView {
+    pub research: Option<crate::company::CompanyResearch>,
+    pub suggested_website: Option<String>,
+}
+
+#[tauri::command]
+pub fn company_research(state: S, job_id: i64) -> AppResult<CompanyResearchView> {
+    let c = state.conn()?;
+    let job = db::get_job(&c, job_id)?;
+    Ok(CompanyResearchView { research: crate::company::get(&c, &job.draft.employer)?, suggested_website: crate::company::suggest_website(&job) })
+}
+
+/// Reads the employer's public website (only when the user clicks), keeping earlier choices.
+#[tauri::command]
+pub async fn research_company(state: State<'_, AppState>, job_id: i64, website: String) -> AppResult<crate::company::CompanyResearch> {
+    let job = db::get_job(&*state.conn()?, job_id)?;
+    let result = crate::company::read_site(&website, &job.draft.employer, &job.draft.title).await;
+    let c = state.conn()?;
+    match result {
+        Ok(mut r) => {
+            if let Some(old) = crate::company::get(&c, &job.draft.employer)? {
+                r.terms = crate::company::merge_previous(r.terms, &old.terms);
+            }
+            crate::company::save(&c, &r)?;
+            db::log(&c, "info", "company", &format!("Read {} pages of {} for {}: {} terms found", r.pages.len(), r.website, r.employer, r.terms.len()));
+            Ok(r)
+        }
+        Err(e) => {
+            db::log(&c, "error", "company", &format!("Could not read {website}: {e}"));
+            Err(e)
+        }
+    }
+}
+
+#[tauri::command]
+pub fn save_company_terms(state: S, job_id: i64, terms: Vec<crate::company::CompanyTerm>) -> AppResult<crate::company::CompanyResearch> {
+    let c = state.conn()?;
+    let job = db::get_job(&c, job_id)?;
+    crate::company::save_terms(&c, &job.draft.employer, terms)
+}

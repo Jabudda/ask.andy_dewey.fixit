@@ -115,7 +115,7 @@ Backend guards (enforced in `db::change_status`, covered by tests):
 
 ## 7. Security & privacy
 
-* No telemetry. Network access happens only on a user action (fetch URL) in Phase 1. All HTTP uses rustls TLS; only `http`/`https` URLs are accepted.
+* No telemetry. Network access happens only on a user action: fetching a posting URL, running a discovery source, generating a document, or **Read website** for company research (`company.rs`: same-site pages only, robots.txt `User-agent: *` rules honoured, one request at a time, no cookies, nothing about the user in the request). All HTTP uses rustls TLS; only `http`/`https` URLs are accepted.
 * The Tauri capability file grants the UI only `dialog` and `opener` (open URL in the default browser). File reads/writes happen in Rust on paths the user picked in a native dialog.
 * API keys (Phase 2+) go into the macOS Keychain via the `keyring` crate — never into SQLite or the repo.
 * CSV export neutralises spreadsheet formula injection (`=`, `+`, `-`, `@` prefixes).

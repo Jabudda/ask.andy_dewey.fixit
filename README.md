@@ -20,6 +20,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, database 
 | Applying | "Open the application page" opens the employer's official site; Copy buttons for each answer | |
 | Confirmation and follow-up | Submitted needs the employer's confirmation; a follow-up reminder is added automatically (7 days by default) | ✓ |
 | Tracker import | Applications you sent before the app existed are imported as history and skip the approval gate | ✓ |
+| Company language | **Job → Company language → Read website** reads up to 6 public pages of the employer's own site (home, about, mission, values, careers), following robots.txt and sending nothing about you. It finds the mission, values, tagline and phrases the site repeats; you tick the ones to use or add your own. Claude echoes a few of them only where your own facts back them up, and the claim checker blocks resume lines backed only by the website | ✓ |
 
 Not yet: filling in application forms in the browser automatically, and opt-in read-only email monitoring. The app never submits an application itself.
 

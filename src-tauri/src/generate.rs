@@ -32,6 +32,8 @@ pub struct Prepared {
     /// Earlier unsuccessful applications to this employer that could be used as a lesson.
     pub previous_available: Vec<String>,
     pub includes_previous: bool,
+    /// How many of the employer's own terms (company research) are included.
+    pub company_terms: usize,
 }
 
 static RE_CONTACT: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
@@ -105,7 +107,9 @@ pub fn prepare(c: &Connection, job_id: i64, kind: &str, learn_from_previous: boo
     }
     let facts = tailoring::facts(&p);
     let system = tailoring::system_prompt(kind, &s.style_notes);
-    let mut user = tailoring::user_prompt(&job, &facts, &tailoring::positions(&p));
+    let company = crate::company::get(c, &job.draft.employer)?;
+    let company_block = company.as_ref().map(crate::company::prompt_block).unwrap_or_default();
+    let mut user = format!("{company_block}{}", tailoring::user_prompt(&job, &facts, &tailoring::positions(&p)));
     let previous = previous_applications(c, &job)?;
     let includes_previous = learn_from_previous && !previous.is_empty();
     if includes_previous {
@@ -134,6 +138,7 @@ pub fn prepare(c: &Connection, job_id: i64, kind: &str, learn_from_previous: boo
         fact_count: facts.len(),
         previous_available: previous.into_iter().map(|(l, _)| l).collect(),
         includes_previous,
+        company_terms: company.map(|r| r.terms.iter().filter(|t| t.selected).count()).unwrap_or(0),
     })
 }
 
@@ -161,7 +166,11 @@ fn slug(s: &str) -> String {
 pub fn save_version(c: &Connection, docs_dir: &Path, job_id: i64, kind: &str, content: &Value) -> AppResult<(DocumentRec, Vec<Finding>, String)> {
     let job = db::get_job(c, job_id)?;
     let p = db::get_profile(c)?;
-    let facts = tailoring::facts(&p);
+    let mut facts = tailoring::facts(&p);
+    // Statements about the employer may cite its own website (rule 12).
+    if let Some(r) = crate::company::get(c, &job.draft.employer)? {
+        facts.extend(crate::company::facts(&r));
+    }
     let evidence = crate::scoring::profile_facts(&p, &db::master_resume_text(c)?, db::today()).evidence;
     let (blocks, findings, notes, clean) = if kind == "resume" {
         let r: ResumeContent = serde_json::from_value(content.clone()).map_err(|e| AppError::invalid(format!("Resume content is malformed: {e}")))?;

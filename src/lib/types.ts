@@ -109,7 +109,7 @@ export interface AiSettings { enabled: boolean; acknowledgedAt: string | null; m
 export interface AiUsageSummary { calls: number; totalUsd: number; monthUsd: number }
 export interface PreparedGeneration {
   kind: string; jobId: number; model: string; effort: string; system: string; user: string; factCount: number; estimatedUsd: number;
-  previousAvailable: string[]; includesPrevious: boolean;
+  previousAvailable: string[]; includesPrevious: boolean; companyTerms: number;
 }
 export interface Generated { document: DocumentRec; findings: Finding[]; costUsd: number; servedByFallback: boolean; notesForCandidate: string }
 export interface Line { text: string; sources: string[] }
@@ -244,3 +244,11 @@ export interface BankAnswer { key: string; question: string; hint: string; answe
 export interface Packet { job: Job; resume: DocumentRec | null; coverLetter: DocumentRec | null; answers: JobAnswer[]; blockers: string[]; followUpDays: number }
 export interface QueueItem { job: Job; resumeApproved: boolean; coverLetterApproved: boolean; answersNeedingInput: number; blockers: string[] }
 export type Decision = "send" | "approve" | "changes" | "later" | "reject";
+
+export type CompanyTermKind = "mission" | "vision" | "value" | "tagline" | "phrase" | "yours";
+export interface CompanyTerm { term: string; kind: CompanyTermKind | string; sourceUrl: string; context: string; selected: boolean }
+export interface CompanyResearch {
+  employer: string; website: string; pages: { url: string; title: string; chars: number }[];
+  terms: CompanyTerm[]; fetchedAt: string; skipped: string[];
+}
+export interface CompanyResearchView { research: CompanyResearch | null; suggestedWebsite: string | null }

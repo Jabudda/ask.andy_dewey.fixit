@@ -125,7 +125,7 @@ function KindSection({ kind, jobId, aiOn, profile, master, versions, onChanged }
 
       {prep && (
         <div className="editor small">
-          <div><strong>Ready to write with {prep.model}</strong> (effort {prep.effort}) · {prep.factCount} verified facts · estimated ≈ ${prep.estimatedUsd.toFixed(2)}</div>
+          <div><strong>Ready to write with {prep.model}</strong> (effort {prep.effort}) · {prep.factCount} verified facts{prep.companyTerms > 0 ? ` · ${prep.companyTerms} company terms` : " · no company terms chosen"} · estimated ≈ ${prep.estimatedUsd.toFixed(2)}</div>
           {prep.previousAvailable.length > 0 && (
             <label className="check">
               <input type="checkbox" checked={prep.includesPrevious} onChange={(e) => start(e.target.checked)} />

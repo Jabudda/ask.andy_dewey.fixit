@@ -288,3 +288,13 @@ input[type="range"] { padding: 0; accent-color: var(--accent-strong); }
 .apply-steps { margin: 0; padding-left: 20px; display: grid; gap: 14px; }
 .apply-steps .form-grid { margin: 8px 0; }
 .bank { margin-top: 24px; }
+
+/* Company language */
+.company-group { margin: 10px 0 4px; }
+.company-statement { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.45; margin: 4px 0; cursor: pointer; }
+.company-statement input { margin-top: 3px; }
+.chip.term { opacity: .6; }
+.chip.term.on { opacity: 1; border-color: var(--accent); }
+.chip.term label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+.chip.term input { margin: 0; }
+.row-inline { display: flex; gap: 8px; align-items: center; margin: 8px 0; } .row-inline input { flex: 1; }

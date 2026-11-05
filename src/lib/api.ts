@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  CompanyResearch, CompanyResearchView, CompanyTerm,
   Accomplishment, AppInfo, Certification, Contact, DashboardStats, DocumentImportResult, Experience, Interview, Job,
   AiSettings, AiUsageSummary, BankAnswer, Decision, JobAnswer, Packet, QueueItem, Generated, PreparedGeneration, Education, ImportReport, JobSource, RunSummary, SearchRun, SearchSettings, JobDetail, JobDraft, LogEntry, Preferences, ProfileBasics, ProfileBundle, Reminder, SaveJobResult, Skill, StatusChange,
 } from "./types";
@@ -77,6 +78,9 @@ export const api = {
 
   reviewQueue: () => call<QueueItem[]>("review_queue"),
   applicationPacket: (jobId: number) => call<Packet>("application_packet", { jobId }),
+  companyResearch: (jobId: number) => call<CompanyResearchView>("company_research", { jobId }),
+  researchCompany: (jobId: number, website: string) => call<CompanyResearch>("research_company", { jobId, website }),
+  saveCompanyTerms: (jobId: number, terms: CompanyTerm[]) => call<CompanyResearch>("save_company_terms", { jobId, terms }),
   decideJob: (jobId: number, decision: Decision, note: string) => call<Job>("decide_job", { jobId, decision, note }),
   saveJobAnswer: (answer: JobAnswer) => call<number>("save_job_answer", { answer }),
   deleteJobAnswer: (id: number) => call<void>("delete_job_answer", { id }),

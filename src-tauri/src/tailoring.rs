@@ -182,7 +182,8 @@ pub fn system_prompt(kind: &str, style_notes: &str) -> String {
          8. Never use em dashes (—). Use commas, colons, semicolons, parentheses or separate sentences instead.\n\
          9. When you name a skill or tool, include in `sources` the matching \"Verified skill\" fact (K…) as well as the bullet that shows it.\n\
          10. Keep quantities and actions exactly as the facts state them: one workflow stays one workflow (never \"workflows\"), and a thing the candidate designed or built is described as designed or built (do not turn it into an ongoing \"automate\" or \"deliver\").\n\
-         11. If a <candidate_context> block is present, it is the candidate's own background on this application (for example, that they already work for this employer). Trust it when framing the document and your notes, and do not contradict it. It is not a citable fact: never quote it in the document, and never include pay figures.\n",
+         11. If a <candidate_context> block is present, it is the candidate's own background on this application (for example, that they already work for this employer). Trust it when framing the document and your notes, and do not contradict it. It is not a citable fact: never quote it in the document, and never include pay figures.\n\
+         12. If a <company_language> block is present, it holds the employer's own words from its website (facts W1, W2…). Echo a few of these terms naturally so the document speaks the employer's language, but only where a candidate fact genuinely connects to them: cite that candidate fact as well as the W fact. A W fact can support a statement about the employer (its mission, values or services), never a claim about the candidate. Do not say the candidate holds a value or did work the candidate facts do not show, do not copy more than a short phrase verbatim, and do not stuff keywords (resume: at most 3 or 4 company terms in total, mostly in the headline, summary and the most relevant bullets; cover letter: 2 to 4, mostly in the opening and closing). The skills list stays verified skills only. In notes_for_candidate, name the company terms you used.\n",
         BANNED_PHRASES.join("; ")
     );
     if kind == "resume" {
@@ -308,8 +309,13 @@ pub fn check_line(loc: &str, line: &Line, facts: &[Fact], profile_evidence: &str
         }
     }
     let lower_cited = cited_text.to_lowercase();
+    let company_cited = cited.iter().filter(|f| is_company_fact(&f.id)).map(|f| f.text.to_lowercase()).collect::<Vec<_>>().join("\n");
     for term in SKILL_VOCABULARY.iter().chain(CERT_TERMS.iter()) {
         if !crate::documents::term_regex(term).is_match(t) {
+            continue;
+        }
+        // Naming the employer's own service ("your crisis management services"), backed by its website.
+        if !company_cited.is_empty() && has_evidence(&company_cited, term) {
             continue;
         }
         if !has_evidence(profile_evidence, term) {
@@ -323,6 +329,23 @@ pub fn check_line(loc: &str, line: &Line, facts: &[Fact], profile_evidence: &str
         if lt.contains(p) {
             push("review", format!("Stock phrase “{p}” — consider rewording"));
         }
+    }
+}
+
+/// A fact from the employer's website (company research), not from the candidate's profile.
+pub fn is_company_fact(id: &str) -> bool {
+    id.starts_with('W') && id[1..].chars().all(|c| c.is_ascii_digit()) && id.len() > 1
+}
+
+/// Resume lines must be about the candidate: a line backed only by the employer's website is not.
+fn company_only(loc: &str, line: &Line, out: &mut Vec<Finding>) {
+    if !line.sources.is_empty() && line.sources.iter().all(|s| is_company_fact(s)) {
+        out.push(Finding {
+            severity: "blocker".into(),
+            location: loc.into(),
+            text: line.text.chars().take(160).collect(),
+            message: "Cites only the company's website — a resume line must be backed by your own experience".into(),
+        });
     }
 }
 
@@ -346,6 +369,7 @@ pub fn check_resume(c: &ResumeContent, facts: &[Fact], skills: &[Skill], profile
     let mut out = vec![];
     let extra = format!("{} {}", job.draft.title, job.draft.employer);
     check_line("Summary", &c.summary, facts, profile_evidence, &extra, &mut out);
+    company_only("Summary", &c.summary, &mut out);
     if !c.headline.trim().is_empty() {
         // The headline is short and uncited: check it for unverified tools and numbers only.
         let mut tmp = vec![];
@@ -366,6 +390,7 @@ pub fn check_resume(c: &ResumeContent, facts: &[Fact], skills: &[Skill], profile
         };
         for (i, b) in p.bullets.iter().enumerate() {
             check_line(&format!("{label}, bullet {}", i + 1), b, facts, profile_evidence, &extra, &mut out);
+            company_only(&format!("{label}, bullet {}", i + 1), b, &mut out);
         }
     }
     out
@@ -663,6 +688,33 @@ pub(crate) mod tests {
         let u = user_prompt(&job(), &f, &positions(&p));
         assert!(u.contains("[E0.1] [Business Operations Specialist, Contoso] Built Smartsheet dashboards"));
         assert!(u.contains("P0: Business Operations Specialist at Contoso (Nov 2023 – Present)"));
+    }
+
+    #[test]
+    fn company_language_supports_statements_about_the_employer_only() {
+        let p = profile();
+        let mut f = facts(&p);
+        let ev = evidence(&p);
+        f.push(Fact { id: "W1".into(), text: "Phrases the employer uses about itself: whole health; Zendesk support desk".into() });
+        assert!(is_company_fact("W1") && !is_company_fact("WX") && !is_company_fact("W"));
+        // About the employer, backed by its website: the tool-vocabulary check doesn't block it.
+        let mut out = vec![];
+        check_line("p1", &Line { text: "Your Zendesk support desk serves members well".into(), sources: vec!["W1".into()] }, &f, &ev, "", &mut out);
+        assert!(out.is_empty(), "{out:?}");
+        // Claiming the skill for the candidate, backed only by the website, is still blocked.
+        let mut out = vec![];
+        check_line("p2", &Line { text: "Ran the Zendesk support desk for 15 agents".into(), sources: vec!["E0.0".into()] }, &f, &ev, "", &mut out);
+        assert!(out.iter().any(|x| x.severity == "blocker" && x.message.contains("Zendesk")), "{out:?}");
+        // A resume line backed only by the employer's website is blocked.
+        let mut r: ResumeContent = serde_json::from_value(serde_json::json!({
+            "headline": "", "summary": {"text": "Committed to whole health", "sources": ["W1"]}, "skills": [], "positions": [], "projects": [], "notes_for_candidate": ""
+        })).unwrap();
+        let out = check_resume(&r, &f, &p.skills, &ev, &job(), &positions(&p));
+        assert!(out.iter().any(|x| x.message.starts_with("Cites only the company's website")), "{out:?}");
+        r.summary.sources.push("E0.0".into());
+        let out = check_resume(&r, &f, &p.skills, &ev, &job(), &positions(&p));
+        assert!(!out.iter().any(|x| x.message.starts_with("Cites only")), "{out:?}");
+        assert!(system_prompt("cover_letter", "").contains("12. If a <company_language>"));
     }
 
     #[test]

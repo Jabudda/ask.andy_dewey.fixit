@@ -2,6 +2,7 @@ pub mod command_center;
 pub mod ai;
 pub mod application;
 pub mod commands;
+pub mod company;
 pub mod connectors;
 pub mod discovery;
 pub mod docgen;
@@ -75,6 +76,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
+            commands::company_research,
+            commands::research_company,
+            commands::save_company_terms,
             commands::get_preferences,
             commands::save_preferences,
             commands::set_milestone,
