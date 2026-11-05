@@ -371,7 +371,12 @@ pub fn list_jobs(state: S) -> AppResult<Vec<Job>> {
 }
 #[tauri::command]
 pub fn get_job_detail(state: S, id: i64) -> AppResult<JobDetail> {
-    db::get_job_detail(&*state.conn()?, id)
+    let c = state.conn()?;
+    // Drafts are re-checked against the current profile, so a newly added skill clears its finding.
+    for d in db::list_documents(&c, Some(id))?.iter().filter(|d| d.status == "draft" && d.kind.starts_with("generated_")) {
+        crate::generate::recheck(&c, d.id)?;
+    }
+    db::get_job_detail(&c, id)
 }
 #[tauri::command]
 pub fn delete_job(state: S, id: i64) -> AppResult<()> {

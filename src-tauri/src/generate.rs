@@ -262,10 +262,46 @@ pub fn save_edit(c: &Connection, docs_dir: &Path, doc_id: i64, content: &Value) 
     Ok(Generated { document, findings, cost_usd: 0.0, served_by_fallback: false, notes_for_candidate: notes })
 }
 
+/// Runs the claim check again on a draft against the profile as it is now, and stores the result.
+/// A fact added to the profile after generating (say, a skill) then clears its finding with no new
+/// generation. Approved and older documents keep the report they were approved with.
+pub fn recheck(c: &Connection, doc_id: i64) -> AppResult<Vec<Finding>> {
+    let d = db::get_document(c, doc_id)?;
+    let (Some(content), Some(job_id)) = (d.content_json.clone(), d.job_id) else { return Ok(d.claim_report) };
+    let kind = match d.kind.as_str() {
+        "generated_resume" => "resume",
+        "generated_cover_letter" => "cover_letter",
+        _ => return Ok(d.claim_report),
+    };
+    if d.status != "draft" {
+        return Ok(d.claim_report);
+    }
+    let job = db::get_job(c, job_id)?;
+    let p = db::get_profile(c)?;
+    let mut facts = tailoring::facts(&p);
+    if let Some(r) = crate::company::get(c, &job.draft.employer)? {
+        facts.extend(crate::company::facts(&r));
+    }
+    let evidence = crate::scoring::profile_facts(&p, &db::master_resume_text(c)?, db::today()).evidence;
+    let findings = if kind == "resume" {
+        let r: ResumeContent = serde_json::from_value(content).map_err(|e| AppError::invalid(format!("Resume content is malformed: {e}")))?;
+        tailoring::check_resume(&tailoring::clean_resume(r), &facts, &p.skills, &evidence, &job, &tailoring::positions(&p))
+    } else {
+        let l: CoverLetterContent = serde_json::from_value(content).map_err(|e| AppError::invalid(format!("Cover letter content is malformed: {e}")))?;
+        tailoring::check_cover_letter(&tailoring::clean_letter(l), &facts, &evidence, &job)
+    };
+    if findings != d.claim_report {
+        c.execute("UPDATE documents SET claim_report = ?1 WHERE id = ?2", params![serde_json::to_string(&findings).map_err(AppError::other)?, doc_id])?;
+        db::log(c, "info", "documents", &format!("Re-checked {} against your current profile: {} → {} findings", d.file_name, d.claim_report.len(), findings.len()));
+    }
+    Ok(findings)
+}
+
 /// Approval requires zero blocking findings, and explicit confirmation of any review items.
 pub fn approve(c: &Connection, doc_id: i64, reviewed: bool) -> AppResult<DocumentRec> {
+    // Check against the profile as it is now, not as it was when the draft was written.
+    let findings: Vec<Finding> = recheck(c, doc_id)?;
     let d = db::get_document(c, doc_id)?;
-    let findings: Vec<Finding> = d.claim_report.clone();
     let blockers = findings.iter().filter(|f| f.severity == "blocker").count();
     if blockers > 0 {
         return Err(AppError::invalid(format!("{blockers} line(s) can't be traced to your verified profile. Edit or remove them, then approve.")));
@@ -333,6 +369,24 @@ mod tests {
         assert!(prepare(&c, id, "poem", false).is_err());
         let body = request_body(&p);
         assert_eq!(body["output_config"]["format"]["type"], "json_schema");
+    }
+
+    #[test]
+    fn adding_a_skill_to_the_profile_unblocks_an_existing_draft() {
+        let (c, id, dir) = setup();
+        let prep = prepare(&c, id, "resume", false).unwrap();
+        let content = json!({"headline": "Operations Specialist", "summary": {"text": "Operations specialist experienced in Zendesk administration.", "sources": ["S1"]},
+            "skills": [], "notes_for_candidate": "", "positions": [{"position_id": "P0", "include": false, "bullets": []}, {"position_id": "P1", "include": false, "bullets": []}]});
+        let g = finish(&c, dir.path(), &prep, &fake_response(content)).unwrap();
+        assert!(g.findings.iter().any(|f| f.severity == "blocker" && f.message.contains("Zendesk")), "{:?}", g.findings);
+        assert!(approve(&c, g.document.id, true).is_err());
+        // The candidate confirms the skill in their profile: the same draft is now approvable, no new version.
+        db::save_skill(&c, &Skill { id: None, name: "Zendesk".into(), category: "Tools".into(), evidence: "Own account".into() }).unwrap();
+        assert!(recheck(&c, g.document.id).unwrap().iter().all(|f| f.severity != "blocker"));
+        let a = approve(&c, g.document.id, true).unwrap();
+        assert_eq!((a.status.as_str(), a.version), ("approved", 1));
+        // Approved documents keep the report they were approved with.
+        assert_eq!(recheck(&c, a.id).unwrap(), a.claim_report);
     }
 
     #[test]

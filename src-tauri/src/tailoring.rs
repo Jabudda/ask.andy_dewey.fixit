@@ -287,7 +287,7 @@ pub fn check_line(loc: &str, line: &Line, facts: &[Fact], profile_evidence: &str
     if line.sources.iter().any(|s| s == USER_SOURCE) {
         push("review", "Written by you — make sure it's accurate".into());
         for term in SKILL_VOCABULARY.iter().chain(CERT_TERMS.iter()) {
-            if crate::documents::term_regex(term).is_match(t) && !has_evidence(profile_evidence, term) {
+            if crate::documents::term_regex(term).is_match(t) && !in_profile(profile_evidence, term) {
                 push("blocker", format!("Mentions “{term}”, which isn't in your verified profile — add it to your skills if it's true"));
             }
         }
@@ -319,7 +319,7 @@ pub fn check_line(loc: &str, line: &Line, facts: &[Fact], profile_evidence: &str
         if !company_cited.is_empty() && has_evidence(&company_cited, term) {
             continue;
         }
-        if !has_evidence(profile_evidence, term) {
+        if !in_profile(profile_evidence, term) {
             push("blocker", format!("Mentions “{term}”, which isn't in your verified profile"));
         } else if !cited.is_empty() && !has_evidence(&lower_cited, term) && !is_verified_skill(facts, term) && !stem_supported(&lower_cited, term) {
             push("review", format!("“{term}” is in your profile but not in the cited source — check the citation"));
@@ -364,6 +364,11 @@ fn names_target_employer(loc: &str, text: &str, job: &Job, pos: &[PositionRef], 
             message: format!("Names {}, the employer you're applying to — resumes usually don't, and it can read as copied from their website", job.draft.employer),
         });
     }
+}
+
+/// The profile shows the term, in any word form: "onboarded" in a bullet supports "Onboarding".
+fn in_profile(profile_evidence: &str, term: &str) -> bool {
+    has_evidence(profile_evidence, term) || stem_supported(&profile_evidence.to_lowercase(), term)
 }
 
 /// The term is one of the candidate's verified skills (a true claim even if a bullet was cited instead).
@@ -737,6 +742,9 @@ pub(crate) mod tests {
         assert!(!out.iter().any(|x| x.message.starts_with("Cites only")), "{out:?}");
         assert!(system_prompt("cover_letter", "").contains("12. If a <company_language>"));
         assert!(system_prompt("resume", "").contains("never say or imply that wording comes from the employer"));
+        // A word form in the profile ("onboarded") supports the vocabulary term ("Onboarding").
+        assert!(in_profile("hired, trained and onboarded 1099 contractors", "Onboarding"));
+        assert!(!in_profile("hired and trained 1099 contractors", "Onboarding"));
         // Naming the target employer in a resume is flagged for review, unless the candidate worked there.
         let mut j = job();
         j.draft.employer = "Fortive".into();
