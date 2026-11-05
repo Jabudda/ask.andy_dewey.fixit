@@ -43,7 +43,7 @@ pub fn facts(p: &ProfileBundle) -> Vec<Fact> {
         f.push(Fact { id: "H1".into(), text: format!("Headline: {}", p.basics.headline.trim()) });
     }
     for (i, e) in p.experience.iter().enumerate() {
-        f.push(Fact { id: format!("P{i}"), text: format!("Position: {} at {} ({})", e.title, e.employer, date_range(e)) });
+        f.push(Fact { id: format!("P{i}"), text: format!("Position: {} at {} ({})", e.title, e.employer, dated(e)) });
         for (j, line) in e.achievements.lines().map(|l| l.trim().trim_start_matches(['•', '-', '*']).trim()).filter(|l| !l.is_empty()).enumerate() {
             f.push(Fact { id: format!("E{i}.{j}"), text: format!("[{}, {}] {}", e.title, e.employer, line) });
         }
@@ -71,6 +71,27 @@ fn month_name(ym: &str) -> String {
         (Some(y), _) if y.chars().all(|c| c.is_ascii_digit()) => y.to_string(),
         _ => t.to_string(),
     }
+}
+
+/// Roles that ended this many years ago or more are listed without dates, so a reader (or a
+/// screening tool) can't count back to the start of a long career.
+pub const DATED_ROLE_YEARS: i32 = 15;
+
+/// The dates to print for a role, or None for an older role whose dates are left off.
+pub fn shown_dates(e: &Experience) -> Option<String> {
+    shown_dates_in(e, chrono::Datelike::year(&chrono::Local::now().date_naive()))
+}
+
+pub fn shown_dates_in(e: &Experience, this_year: i32) -> Option<String> {
+    let end_year: Option<i32> = e.end_date.get(..4).and_then(|y| y.parse().ok());
+    match end_year {
+        Some(y) if !e.is_current && y <= this_year - DATED_ROLE_YEARS => None,
+        _ => Some(date_range(e)),
+    }
+}
+
+fn dated(e: &Experience) -> String {
+    shown_dates(e).unwrap_or_else(|| "earlier career; dates not shown".into())
 }
 
 pub fn date_range(e: &Experience) -> String {
@@ -296,7 +317,7 @@ fn job_and_facts(job: &Job, facts: &[Fact], positions: &[PositionRef], b: &Score
         list(&b.satisfied),
         list(&b.partial),
         list(&b.gaps),
-        positions.iter().map(|p| format!("{}: {} at {} ({})", p.id, p.exp.title, p.exp.employer, date_range(&p.exp))).collect::<Vec<_>>().join("\n"),
+        positions.iter().map(|p| format!("{}: {} at {} ({})", p.id, p.exp.title, p.exp.employer, dated(&p.exp))).collect::<Vec<_>>().join("\n"),
         facts.iter().map(|f| format!("[{}] {}", f.id, f.text)).collect::<Vec<_>>().join("\n"),
     )
 }
@@ -537,7 +558,7 @@ pub fn render_resume(p: &ProfileBundle, c: &ResumeContent) -> Vec<Block> {
         b.push(Block::Heading("Professional Experience".into()));
         for x in main {
             let meta = [x.exp.employer.as_str(), x.exp.location.as_str()].iter().filter(|s| !s.is_empty()).cloned().collect::<Vec<_>>().join(", ");
-            b.push(Block::Role { title: x.exp.title.clone(), meta: format!("{meta}  |  {}", date_range(&x.exp)) });
+            b.push(Block::Role { title: x.exp.title.clone(), meta: match shown_dates(&x.exp) { Some(d) => format!("{meta}  |  {d}"), None => meta.clone() } });
             for bl in &content_for(&x.id).unwrap().bullets {
                 if !bl.text.trim().is_empty() {
                     b.push(Block::Bullet(bl.text.trim().to_string()));
@@ -564,7 +585,7 @@ pub fn render_resume(p: &ProfileBundle, c: &ResumeContent) -> Vec<Block> {
     if !other.is_empty() {
         b.push(Block::Heading("Additional Experience".into()));
         for x in other {
-            b.push(Block::Para(format!("{}, {}, {}", x.exp.title, x.exp.employer, date_range(&x.exp))));
+            b.push(Block::Para(match shown_dates(&x.exp) { Some(d) => format!("{}, {}, {d}", x.exp.title, x.exp.employer), None => format!("{}, {}", x.exp.title, x.exp.employer) }));
         }
     }
     if !p.education.is_empty() {
@@ -805,6 +826,27 @@ pub(crate) mod tests {
         r2.summary.text = format!("Six years at {}", p.experience[0].employer);
         let out = check_resume(&r2, &f, &p.skills, &ev, &j, &positions(&p));
         assert!(!out.iter().any(|x| x.message.starts_with("Names ")), "internal candidates may name their employer: {out:?}");
+    }
+
+    #[test]
+    fn dates_are_left_off_roles_that_ended_15_or_more_years_ago() {
+        let role = |start: &str, end: &str, current: bool| Experience { id: None, employer: "E".into(), title: "T".into(), location: String::new(),
+            start_date: start.into(), end_date: end.into(), is_current: current, achievements: String::new(), sort_order: 0 };
+        assert_eq!(shown_dates_in(&role("1992", "1996", false), 2026), None);
+        assert_eq!(shown_dates_in(&role("1994", "2004", false), 2026), None);
+        assert_eq!(shown_dates_in(&role("2005", "2011", false), 2026), None, "ended exactly 15 years ago");
+        assert_eq!(shown_dates_in(&role("2002", "2020", false), 2026).as_deref(), Some("2002 – 2020"));
+        assert_eq!(shown_dates_in(&role("2005", "2012", false), 2026).as_deref(), Some("2005 – 2012"));
+        assert!(shown_dates_in(&role("1990-05", "", true), 2026).unwrap().ends_with("Present"), "current roles keep their dates");
+        // An old role's dates never reach the model either, so it can't write them into a letter.
+        let mut p = profile();
+        p.experience.push(role("1992", "1996", false));
+        let f = facts(&p);
+        let old = f.iter().find(|x| x.text.starts_with("Position: T at E")).unwrap();
+        assert!(old.text.contains("earlier career; dates not shown") && !old.text.contains("1992"), "{}", old.text);
+        let t = plain_text(&render_resume(&p, &ResumeContent { headline: String::new(), summary: Line { text: String::new(), sources: vec![] },
+            skills: vec![], positions: vec![], projects: vec![], notes_for_candidate: String::new() }));
+        assert!(!t.contains("1992") && !t.contains("1996") && t.contains("T, E"), "{t}");
     }
 
     #[test]

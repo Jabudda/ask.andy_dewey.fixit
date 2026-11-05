@@ -246,6 +246,20 @@ fn normalized(kind: &str, v: &Value) -> Option<Value> {
     }
 }
 
+/// The document's text as the app would print it today.
+fn rendered_text(c: &Connection, job_id: i64, kind: &str, content: &Value) -> AppResult<String> {
+    let p = db::get_profile(c)?;
+    let blocks = if kind == "resume" {
+        let r: ResumeContent = serde_json::from_value(content.clone()).map_err(|e| AppError::invalid(format!("Resume content is malformed: {e}")))?;
+        tailoring::render_resume(&p, &tailoring::clean_resume(r))
+    } else {
+        let l: CoverLetterContent = serde_json::from_value(content.clone()).map_err(|e| AppError::invalid(format!("Cover letter content is malformed: {e}")))?;
+        let date = chrono::Local::now().format("%B %-d, %Y").to_string();
+        tailoring::render_cover_letter(&p, &db::get_job(c, job_id)?, &tailoring::clean_letter(l), &date)
+    };
+    Ok(tailoring::plain_text(&blocks))
+}
+
 /// Saves the user's edits as a new version (re-rendered and re-checked).
 pub fn save_edit(c: &Connection, docs_dir: &Path, doc_id: i64, content: &Value) -> AppResult<Generated> {
     let d = db::get_document(c, doc_id)?;
@@ -256,7 +270,11 @@ pub fn save_edit(c: &Connection, docs_dir: &Path, doc_id: i64, content: &Value) 
     };
     let job_id = d.job_id.ok_or_else(|| AppError::invalid("Document is not linked to a job"))?;
     if d.content_json.is_some() && normalized(kind, content) == d.content_json.as_ref().and_then(|v| normalized(kind, v)) {
-        return Err(AppError::invalid("Nothing has changed since this version, so no new version was saved"));
+        // Same words, but the app may now lay them out differently (say, older dates left off):
+        // then a new version is worth saving. Otherwise there is nothing to save.
+        if rendered_text(c, job_id, kind, content)? == d.extracted_text {
+            return Err(AppError::invalid("Nothing has changed since this version, so no new version was saved"));
+        }
     }
     let (document, findings, notes) = save_version(c, docs_dir, job_id, kind, content)?;
     Ok(Generated { document, findings, cost_usd: 0.0, served_by_fallback: false, notes_for_candidate: notes })
