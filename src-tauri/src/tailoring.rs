@@ -162,11 +162,56 @@ pub fn cover_letter_schema() -> Value {
 // ───────────────────────────── prompts ─────────────────────────────
 
 pub const BANNED_PHRASES: &[&str] = &[
-    "i am writing to express", "i am excited to apply", "i'm excited to apply", "passionate about", "dynamic", "synergy",
-    "results-driven", "go-getter", "team player", "think outside the box", "fast-paced environment", "in today's",
-    "delve", "tapestry", "leverage my", "proven track record", "hit the ground running", "perfect fit", "dream job",
-    "i believe i would be", "unique blend", "spearheaded", "testament to",
+    // cover-letter clichés
+    "i am writing to express", "i am excited to apply", "i'm excited to apply", "passionate about", "in today's",
+    "delve", "tapestry", "perfect fit", "dream job", "i believe i would be", "unique blend", "testament to",
+    "hit the ground running", "think outside the box", "fast-paced environment",
+    // weak duty language: says what the job was, not what was done
+    "responsible for", "helped with", "helped to", "worked on", "assisted with", "assisted in", "assisted", "duties included",
+    "tasked with", "in charge of", "familiar with", "exposure to",
+    // empty self-description and jargon recruiters and screening tools discount
+    "leverage", "leveraged", "leveraging", "utilize", "utilized", "utilizing", "hard worker", "hardworking", "hard-working",
+    "go-getter", "go getter", "self-starter", "self starter", "detail-oriented", "detail oriented", "results-driven",
+    "results-oriented", "team player", "people person", "synergy", "dynamic", "highly motivated", "self-motivated",
+    "proven track record", "track record", "best of breed", "value add", "strategic thinker", "out-of-the-box",
+    "excellent communication skills", "strong work ethic", "spearheaded", "various", "etc.",
 ];
+
+pub const DEFAULT_GREETING: &str = "Greetings, Hiring Team,";
+
+/// Phrases that can date a candidate to a human reader or a screening tool.
+pub const AGE_SIGNALS: &[&str] = &[
+    "seasoned", "decades of", "veteran", "references available upon request", "references available on request",
+    "to whom it may concern", "dear sir or madam", "dear sir/madam", "objective:", "career objective",
+];
+
+static RE_LONG_TENURE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\b(?:1[5-9]|[2-9]\d)\s*\+?\s*(?:plus\s+)?years\b|\b(?:over|more than)\s+(?:1[5-9]|[2-9]\d|fifteen|twenty|thirty)\s+years\b").unwrap());
+
+/// Whole-phrase, case-insensitive match ("dynamic" does not match "dynamics").
+fn has_phrase(text_lower: &str, phrase: &str) -> bool {
+    Regex::new(&format!(r"(?:^|[^\w]){}(?:$|[^\w])", regex::escape(phrase))).map(|r| r.is_match(text_lower)).unwrap_or(false)
+}
+
+/// Weak, overused and age-signalling language, flagged for review (never blocking).
+pub fn style_findings(loc: &str, text: &str, out: &mut Vec<Finding>) {
+    let t = text.trim();
+    let lt = t.to_lowercase();
+    let mut push = |msg: String| out.push(Finding { severity: "review".into(), location: loc.into(), text: t.chars().take(160).collect(), message: msg });
+    for p in BANNED_PHRASES {
+        if has_phrase(&lt, p) {
+            push(format!("Weak or overused phrase “{p}”: recruiters and screening tools often skip past it. Say what you did and the result instead"));
+        }
+    }
+    for p in AGE_SIGNALS {
+        if has_phrase(&lt, p) {
+            push(format!("“{p}” can signal age to a reader or screening tool. Consider rewording"));
+        }
+    }
+    if let Some(m) = RE_LONG_TENURE.find(t) {
+        push(format!("“{}” can signal age. Lead with recent, relevant results instead of total years", m.as_str()));
+    }
+}
 
 pub fn system_prompt(kind: &str, style_notes: &str) -> String {
     let common = format!(
@@ -177,7 +222,8 @@ pub fn system_prompt(kind: &str, style_notes: &str) -> String {
          3. Numbers may appear only if they appear in a cited fact. Do not round, inflate or combine them.\n\
          4. You may rephrase and reorder to emphasise what this employer needs, and use the posting's own terminology where the facts truthfully support it. Do not stretch a fact to match a requirement it does not meet.\n\
          5. Do not mention requirements the candidate lacks, and never imply they have them.\n\
-         6. Avoid stock phrases, including: {}.\n\
+         6. Avoid stock and weak phrases, including: {}. Show the action and its result instead of naming a duty (\"Built…\", not \"Responsible for…\").\n\
+         6b. Avoid language that can signal age: \"seasoned\", \"veteran\", \"decades of experience\", totals of 15 or more years, \"References available upon request\", \"Objective\", \"Dear Sir or Madam\", \"To Whom It May Concern\".\n\
          7. Write in plain, specific language. No exclamation marks.\n\
          8. Never use em dashes (—). Use commas, colons, semicolons, parentheses or separate sentences instead.\n\
          9. When you name a skill or tool, include in `sources` the matching \"Verified skill\" fact (K…) as well as the bullet that shows it.\n\
@@ -200,7 +246,7 @@ pub fn system_prompt(kind: &str, style_notes: &str) -> String {
     } else {
         format!(
             "{common}\nTASK: write a cover letter for the posting.\n\
-             - `greeting`: \"Dear Hiring Team,\" unless a hiring manager is named in the posting.\n\
+             - `greeting`: \"Greetings, Hiring Team,\" unless a hiring manager is named in the posting, then \"Hello <their name>,\". Never start with \"Dear\".\n\
              - `paragraphs`: 3–4 paragraphs, 230–360 words in total. Open with why this role and employer, specifically, connect to what the candidate has actually done (no generic flattery). Highlight two or three relevant accomplishments from the facts. Close with a confident, brief next step.\n\
              - `closing`: e.g. \"Sincerely,\" (the app adds the candidate's name).\n\
              - The candidate's voice, from their own writing: {style}\n\
@@ -291,6 +337,7 @@ pub fn check_line(loc: &str, line: &Line, facts: &[Fact], profile_evidence: &str
                 push("blocker", format!("Mentions “{term}”, which isn't in your verified profile — add it to your skills if it's true"));
             }
         }
+        style_findings(loc, t, out);
         return;
     }
     let cited: Vec<&Fact> = line.sources.iter().filter_map(|id| facts.iter().find(|f| &f.id == id)).collect();
@@ -325,12 +372,7 @@ pub fn check_line(loc: &str, line: &Line, facts: &[Fact], profile_evidence: &str
             push("review", format!("“{term}” is in your profile but not in the cited source — check the citation"));
         }
     }
-    let lt = t.to_lowercase();
-    for p in BANNED_PHRASES {
-        if lt.contains(p) {
-            push("review", format!("Stock phrase “{p}” — consider rewording"));
-        }
-    }
+    style_findings(loc, t, out);
 }
 
 /// A fact from the employer's website (company research), not from the candidate's profile.
@@ -439,6 +481,10 @@ fn check_projects(c: &ResumeContent, facts: &[Fact], profile_evidence: &str, ext
 pub fn check_cover_letter(c: &CoverLetterContent, facts: &[Fact], profile_evidence: &str, job: &Job) -> Vec<Finding> {
     let mut out = vec![];
     let extra = format!("{} {} {}", job.draft.title, job.draft.employer, job.draft.location_text);
+    let g = c.greeting.trim().to_lowercase();
+    if g.starts_with("dear") || g.starts_with("to whom") {
+        out.push(Finding { severity: "review".into(), location: "Greeting".into(), text: c.greeting.trim().into(), message: format!("“{}” can read as dated. Consider “{DEFAULT_GREETING}”", c.greeting.trim()) });
+    }
     for (i, p) in c.paragraphs.iter().enumerate() {
         check_line(&format!("Paragraph {}", i + 1), p, facts, profile_evidence, &extra, &mut out);
     }
@@ -570,7 +616,7 @@ pub fn render_cover_letter(p: &ProfileBundle, job: &Job, c: &CoverLetterContent,
     b.push(Block::Para(format!("Hiring Team\n{}", job.draft.employer)));
     b.push(Block::Para(format!("Re: {}", job.draft.title)));
     b.push(Block::Gap);
-    b.push(Block::Para(if c.greeting.trim().is_empty() { "Dear Hiring Team,".into() } else { c.greeting.trim().to_string() }));
+    b.push(Block::Para(if c.greeting.trim().is_empty() { DEFAULT_GREETING.into() } else { c.greeting.trim().to_string() }));
     for para in &c.paragraphs {
         if !para.text.trim().is_empty() {
             b.push(Block::Para(para.text.trim().to_string()));
@@ -762,6 +808,29 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn flags_weak_overused_and_age_signalling_language() {
+        let flagged = |t: &str| { let mut o = vec![]; style_findings("x", t, &mut o); o };
+        for t in ["Responsible for the help desk", "Helped with onboarding", "Worked on the dashboard", "Assisted the team",
+                  "Leverage data to win", "A hard worker and a go getter", "Results-driven self-starter", "Utilized Excel daily"] {
+            let o = flagged(t);
+            assert!(!o.is_empty() && o.iter().all(|f| f.severity == "review"), "{t}: {o:?}");
+        }
+        assert!(flagged("Seasoned operations leader").iter().any(|f| f.message.contains("signal age")));
+        assert!(flagged("With 25+ years of experience").iter().any(|f| f.message.contains("25+ years")));
+        assert!(flagged("over twenty years in hospitality").iter().any(|f| f.message.contains("signal age")));
+        // Whole words only, and ordinary recent tenure is fine.
+        assert!(flagged("Built team dynamics dashboards over 6+ years").is_empty(), "{:?}", flagged("Built team dynamics dashboards over 6+ years"));
+        assert!(flagged("Built a Smartsheet payment workflow that cut processing to 15 minutes").is_empty());
+        // Dated greetings are flagged on cover letters.
+        let p = profile();
+        let mut cl = CoverLetterContent { greeting: "Dear Hiring Team,".into(), paragraphs: vec![], closing: String::new(), notes_for_candidate: String::new() };
+        assert!(check_cover_letter(&cl, &facts(&p), "", &job()).iter().any(|f| f.location == "Greeting"));
+        cl.greeting = DEFAULT_GREETING.into();
+        assert!(check_cover_letter(&cl, &facts(&p), "", &job()).is_empty());
+        assert!(system_prompt("cover_letter", "").contains("Greetings, Hiring Team,") && system_prompt("resume", "").contains("signal age"));
+    }
+
+    #[test]
     fn claim_check_blocks_invented_content() {
         let p = profile();
         let f = facts(&p);
@@ -864,7 +933,7 @@ pub(crate) mod tests {
         let cl = CoverLetterContent { greeting: String::new(), paragraphs: vec![Line { text: "One two three.".into(), sources: vec!["S1".into()] }], closing: String::new(), notes_for_candidate: String::new() };
         let t = plain_text(&render_cover_letter(&p, &job(), &cl, "November 4, 2026"));
         assert!(t.contains("Hiring Team\nHSAG\nRe: Analytics Coordinator III"));
-        assert!(t.contains("Dear Hiring Team,"));
+        assert!(t.contains("Greetings, Hiring Team,") && !t.contains("Dear"));
         assert!(t.ends_with("Sincerely,\nJordan Sample"));
         assert_eq!(word_count(&cl), 3);
     }
