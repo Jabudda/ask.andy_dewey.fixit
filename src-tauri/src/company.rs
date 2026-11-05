@@ -122,8 +122,8 @@ pub fn not_company_site(host: &str) -> Option<&'static str> {
 
 /// Words of the employer's name that identify it ("truv", "acme"), skipping generic ones.
 pub fn name_tokens(employer: &str) -> Vec<String> {
-    const GENERIC: [&str; 24] = [
-        "health", "group", "services", "service", "solutions", "technologies", "technology", "systems", "global",
+    const GENERIC: [&str; 25] = [
+        "health", "care", "group", "services", "service", "solutions", "technologies", "technology", "systems", "global",
         "international", "resources", "labs", "software", "partners", "holdings", "consulting", "national", "american",
         "united", "first", "and", "for", "of", "the",
     ];
@@ -385,10 +385,13 @@ const FRAGMENT_EDGES: [&str; 18] = [
     "though", "although", "many", "much", "say", "says", "comes", "next", "do", "does", "did", "let", "lets", "let's",
     "we're", "you're", "they're", "it's",
 ];
-const NOISE: [&str; 28] = [
+const NOISE: [&str; 39] = [
     "learn more", "read more", "contact us", "click", "privacy", "cookie", "copyright", "rights reserved", "pinterest",
     "facebook", "linkedin", "twitter", "instagram", "youtube", "sign up", "log in", "login", "subscribe", "menu", "skip to",
     "request a demo", "get started", "newsletter", "javascript", "case study", "content library", "book a demo", "free trial",
+    // credits, news and events
+    "website by", "site by", "designed by", "conference", "expo", "webinar", "to present", "press release", "announces",
+    "in the news", "summit",
 ];
 
 fn words(s: &str) -> Vec<(String, String)> {
@@ -410,7 +413,9 @@ fn sentence_with(text: &str, phrase_lower: &str) -> String {
 /// Phrases of two to four words the site repeats, across pages, ranked by use.
 pub fn recurring_phrases(pages: &[(String, Vec<String>)], employer: &str) -> Vec<CompanyTerm> {
     // The company's distinctive name word ("acme"), not every word of its name ("health" stays useful).
-    let name_words: HashSet<String> = employer_key(employer).split(' ').filter(|w| w.len() > 2).take(1).map(String::from).collect();
+    // Every distinctive word of the company's name ("sellers", "dorsey"): a phrase that names the
+    // company is about it in the news, not its own language. Generic words ("health") stay usable.
+    let name_words: HashSet<String> = name_tokens(employer).into_iter().collect();
     let mut count: HashMap<String, (usize, HashSet<usize>, String, String, String)> = HashMap::new();
     for (pi, (url, lines)) in pages.iter().enumerate() {
         for l in lines {
@@ -483,7 +488,8 @@ pub fn recurring_phrases(pages: &[(String, Vec<String>)], employer: &str) -> Vec
 /// Lowercases Title-Cased words but keeps acronyms (EAP) as written.
 fn tidy_case(s: &str) -> String {
     s.split(' ')
-        .map(|w| if w.len() > 1 && w.chars().all(|c| !c.is_alphabetic() || c.is_uppercase()) { w.to_string() } else { w.to_lowercase() })
+        // Keep acronyms as written ("EAP", "FQHCs", "SaaS"): two or more capitals.
+        .map(|w| if w.chars().filter(|c| c.is_uppercase()).count() >= 2 { w.to_string() } else { w.to_lowercase() })
         .collect::<Vec<_>>()
         .join(" ")
 }
@@ -767,6 +773,18 @@ mod tests {
     }
 
     #[test]
+    fn news_credits_and_the_company_name_are_not_its_language() {
+        let page = |extra: &str| format!("<html><title>Sellers Dorsey</title><body><p>Managed care contracting and strategy for FQHCs and states.</p><p>Sellers Dorsey to present at APHA annual meeting.</p><p>Covered health care conference expo next week.</p><p>Website by BNP Engage studio.</p><p>{extra}</p></body></html>");
+        let pages: Vec<(String, Vec<String>)> = vec![("https://sd.test/".into(), page_lines(&page("One"))), ("https://sd.test/about".into(), page_lines(&page("Two")))];
+        let found: Vec<String> = recurring_phrases(&pages, "Sellers Dorsey").into_iter().map(|t| t.term).collect();
+        assert!(found.iter().any(|f| f.contains("contracting and strategy")), "{found:?}");
+        assert!(found.iter().any(|f| f.contains("FQHCs")), "acronyms keep their capitals: {found:?}");
+        for junk in ["dorsey", "present at", "conference", "expo", "website by", "bnp"] {
+            assert!(!found.iter().any(|f| f.to_lowercase().contains(junk)), "{junk} in {found:?}");
+        }
+    }
+
+    #[test]
     fn job_boards_and_news_sites_are_not_company_websites() {
         for h in ["himalayas.app", "jobicy.com", "www.forbes.com", "www.linkedin.com", "boards.greenhouse.io", "jobs.dayforcehcm.com"] {
             assert!(not_company_site(h).is_some(), "{h}");
@@ -781,6 +799,7 @@ mod tests {
         assert_eq!(name_tokens("AcmeCare Health Resources Inc"), vec!["acmecare"]);
         assert_eq!(name_tokens("Health Resources"), vec!["healthresources"]);
         assert!(mentions_employer("Welcome to Acme Care Health", "AcmeCare Health Resources Inc"));
+        assert_eq!(name_tokens("Acme Care Inc"), vec!["acme"]);
         assert!(mentions_employer("https://www.truv.com/ Truv | Income verification", "Truv"));
         assert!(!mentions_employer("Himalayas is the leading remote job board", "Fortive"));
         // Generic words alone don't count as a mention.
