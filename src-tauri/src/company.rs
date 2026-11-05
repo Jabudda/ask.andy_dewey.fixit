@@ -203,17 +203,18 @@ pub fn robots_allows(rules: &[String], path: &str) -> bool {
 
 static RE_HREF: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?i)<a\b[^>]*\bhref\s*=\s*["']([^"'#]+)["']"#).unwrap());
 
-const PAGE_HINTS: [(&str, i32); 16] = [
+const PAGE_HINTS: [(&str, i32); 25] = [
     ("about", 6), ("who-we-are", 6), ("our-story", 6), ("mission", 6), ("values", 6), ("company", 5), ("culture", 5),
-    ("vision", 5), ("purpose", 5), ("careers", 4), ("why-", 3), ("story", 3), ("solutions", 2), ("services", 2), ("what-we-do", 3), ("join", 2),
+    ("vision", 5), ("purpose", 5), ("careers", 4), ("why-", 3), ("story", 3), ("solutions", 2), ("services", 2), ("what-we-do", 3), ("join", 2), ("inclusion", 3), ("sustainability", 2), ("impact", 2), ("people", 2), ("how-we-work", 3), ("approach", 2), ("life-at", 3), ("our-company", 5), ("leadership", 1),
 ];
-const SKIP_PATHS: [&str; 16] = [
+const SKIP_PATHS: [&str; 24] = [
     "feed", "wp-json", "xmlrpc", "login", "portal", "cart", "privacy", "terms", "cookie", "sitemap", "tag/", "category/",
-    "events", "contact-old", "/page/", "search",
+    "events", "contact-old", "/page/", "search", "contact", "supplier", "investor", "news", "press", "blog", "legal", "accessibility",
 ];
 
 /// Picks up to `MAX_PAGES - 1` same-site pages most likely to describe the company, most useful first.
-pub fn choose_pages(base: &url::Url, html: &str, job_words: &[String], rules: &[String]) -> Vec<url::Url> {
+pub fn choose_pages(base: &url::Url, html: &str, job_words: &[String], rules: &[String], employer: &str) -> Vec<url::Url> {
+    let name = name_tokens(employer);
     let host = base.host_str().unwrap_or("").trim_start_matches("www.").to_string();
     let mut scored: HashMap<String, (i32, url::Url)> = HashMap::new();
     for cap in RE_HREF.captures_iter(html) {
@@ -229,8 +230,32 @@ pub fn choose_pages(base: &url::Url, html: &str, job_words: &[String], rules: &[
         if !robots_allows(rules, u.path()) {
             continue;
         }
+        // Utility pages: whole path segments, so "/tos" is skipped but "/photos" is not.
+        const SKIP_SEGMENTS: [&str; 27] = [
+            "tos", "demo", "pricing", "plans", "signup", "sign-up", "register", "checkout", "faq", "faqs", "help", "support",
+            "docs", "guides", "documentation", "api", "status", "events",
+            // other people's words, or not about the company itself
+            "reviews", "testimonials", "changelog", "release-notes", "podcast", "podcasts", "compare", "vs", "webinars",
+        ];
+        if path.split('/').any(|seg| SKIP_SEGMENTS.contains(&seg)) {
+            continue;
+        }
         let mut score: i32 = PAGE_HINTS.iter().filter(|(h, _)| path.contains(h)).map(|(_, s)| *s).sum();
         score += job_words.iter().filter(|w| path.contains(w.as_str())).count() as i32 * 2;
+        // Pages named after the company ("/meet-fortive", "/the-acme-way") are about it.
+        // Short slugs only: "/acme-named-to-2026-best-places-list" is a news story, not a page about them.
+        let slug_words = path.trim_matches('/').rsplit('/').next().unwrap_or("").split('-').count();
+        // Six or more words in the address is an article or announcement.
+        if slug_words >= 6 {
+            continue;
+        }
+        if slug_words <= 3 && name.iter().any(|n| compact(&path).contains(n.as_str())) {
+            score += 5;
+        }
+        // Top-level pages ("/growth", "/inclusion") are the company's main pages; deeper ones need a hint.
+        if path.trim_matches('/').matches('/').count() == 0 {
+            score += 1;
+        }
         // Shallow paths are usually the main pages.
         score -= path.trim_matches('/').matches('/').count() as i32 * 2;
         if score <= 0 {
@@ -340,7 +365,9 @@ pub fn statements(lines: &[String], url: &str) -> Vec<CompanyTerm> {
             }
             for it in items {
                 let v = it.trim_end_matches([',', '.', ';']).trim().to_string();
-                if v.len() >= 3 && !RE_SECTION.is_match(&v) {
+                // "What we believe and work for" introduces the values; it isn't one.
+                let intro = Regex::new(r"(?i)^(what|how|why|here's what|this is what) we\b").unwrap().is_match(&v);
+                if v.len() >= 3 && !RE_SECTION.is_match(&v) && !intro {
                     out.push(term("value", &v, url, &v));
                 }
             }
@@ -589,7 +616,7 @@ pub async fn read_site(website: &str, employer: &str, job_title: &str) -> AppRes
     let (home_url, home) = get_text(&cl, &base).await.map_err(|e| AppError::other(format!("Could not read {base}: {e}")))?;
     let mut pages = vec![(home_url.to_string(), home.clone())];
     let mut skipped = vec![];
-    for u in choose_pages(&home_url, &home, &job_words(job_title), &rules) {
+    for u in choose_pages(&home_url, &home, &job_words(job_title), &rules, employer) {
         tokio::time::sleep(std::time::Duration::from_millis(700)).await;
         match get_text(&cl, &u).await {
             Ok((fu, h)) => {
@@ -675,6 +702,7 @@ mod tests {
         <p>We drive positive change for organizations, powered by people who care.</p>
         <h2>Our Mission</h2><div><p>Combining compassionate care, expertise, and innovative technologies to unleash the full potential of individuals and organizations.</p></div>
         <h2>Our Values</h2>
+        <h4>What we believe and work for</h4>
         <h5><span>Be helpful</span></h5><p>and caring</p>
         <h5>Be humble,</h5><p>inclusive and collaborative</p>
         <h5>Be open</h5><p>to new possibilities</p>
@@ -716,7 +744,7 @@ mod tests {
     fn chooses_same_site_company_pages_only() {
         let base = url::Url::parse("https://acme.test/").unwrap();
         let rules = robots_disallows("User-agent: *\nDisallow: /private/");
-        let p: Vec<String> = choose_pages(&base, COMPANY, &[], &rules).iter().map(|u| u.path().to_string()).collect();
+        let p: Vec<String> = choose_pages(&base, COMPANY, &[], &rules, "Acme Care").iter().map(|u| u.path().to_string()).collect();
         assert_eq!(p, vec!["/about/", "/careers/"]);
     }
 
@@ -781,6 +809,24 @@ mod tests {
         assert!(found.iter().any(|f| f.contains("FQHCs")), "acronyms keep their capitals: {found:?}");
         for junk in ["dorsey", "present at", "conference", "expo", "website by", "bnp"] {
             assert!(!found.iter().any(|f| f.to_lowercase().contains(junk)), "{junk} in {found:?}");
+        }
+    }
+
+    #[test]
+    fn picks_pages_named_after_the_company_and_main_pages() {
+        let base = url::Url::parse("https://fortive.test/").unwrap();
+        let home = r#"<a href="/meet-fortive">Meet</a><a href="/growth">Growth</a><a href="/inclusion">Inclusion</a>
+            <a href="/contact-us">Contact</a><a href="/terms-use">Terms</a><a href="/CCPA-privacy-notice">Privacy</a>
+            <a href="/suppliers">Suppliers</a><a href="/news/2026/q3-results">Q3</a><a href="https://careers.fortive.test/">Careers</a>"#;
+        let p: Vec<String> = choose_pages(&base, home, &[], &[], "Fortive").iter().map(|u| u.path().to_string()).collect();
+        assert_eq!(p[0], "/meet-fortive", "{p:?}");
+        assert!(p.contains(&"/growth".to_string()) && p.contains(&"/inclusion".to_string()), "{p:?}");
+        let home2 = r#"<a href="/tos/">Terms</a><a href="/demo/">Demo</a><a href="/pricing">Pricing</a><a href="/photos">Photos</a>
+            <a href="/fortive-named-to-2026-best-places-to-work-list/">News</a><a href="/meet-fortive">Meet</a>"#;
+        let p2: Vec<String> = choose_pages(&base, home2, &[], &[], "Fortive").iter().map(|u| u.path().to_string()).collect();
+        assert_eq!(p2, vec!["/meet-fortive", "/photos"], "{p2:?}");
+        for skip in ["/contact-us", "/terms-use", "/CCPA-privacy-notice", "/suppliers", "/news/2026/q3-results"] {
+            assert!(!p.contains(&skip.to_string()), "{skip} in {p:?}");
         }
     }
 
