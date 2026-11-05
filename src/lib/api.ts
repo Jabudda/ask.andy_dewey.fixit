@@ -72,6 +72,8 @@ export const api = {
   saveDocumentEdit: (id: number, content: unknown) => call<Generated>("save_document_edit", { id, content }),
   approveDocument: (id: number, reviewed: boolean) => call<import("./types").DocumentRec>("approve_document", { id, reviewed }),
   openDocumentPdf: (id: number) => call<void>("open_document_pdf", { id }),
+  saveDocumentCopy: (id: number, format: "pdf" | "docx", dest: string) => call<void>("save_document_copy", { id, format, dest }),
+  revealDocument: (id: number) => call<void>("reveal_document", { id }),
   runDiscovery: (sourceId?: number) => call<RunSummary[]>("run_discovery", { sourceId: sourceId ?? null }),
 
   exportJobs: (path: string, format: "csv" | "xlsx") => call<number>("export_jobs", { path, format }),

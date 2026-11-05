@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
 import type { CoverLetterContent, DocumentRec, Finding, Line, PreparedGeneration, ProfileBundle, ResumeContent } from "../lib/types";
+import { save } from "@tauri-apps/plugin-dialog";
 import { Card, Field, confirmAction, useToast } from "./ui";
 
 type Kind = "resume" | "cover_letter";
@@ -79,6 +80,17 @@ function KindSection({ kind, jobId, aiOn, profile, master, versions, onChanged }
       onChanged();
     } catch (e) { fail(e); } finally { setBusy(false); }
   };
+  const saveCopy = async (d: DocumentRec, format: "pdf" | "docx") => {
+    const src = format === "pdf" ? d.pdfPath : d.storedPath;
+    if (!src) { fail("This document has no PDF version"); return; }
+    const name = src.split("/").pop() ?? `${LABEL[kind]}.${format}`;
+    try {
+      const dest = await save({ defaultPath: name, filters: [{ name: format === "pdf" ? "PDF" : "Word document", extensions: [format] }] });
+      if (!dest) return;
+      await api.saveDocumentCopy(d.id, format, dest);
+      notify("ok", `Saved ${dest.split("/").pop()}`);
+    } catch (e) { fail(e); }
+  };
   const approve = async () => {
     if (!latest) return;
     const needsReview = latest.claimReport.some((f) => f.severity !== "blocker");
@@ -98,8 +110,11 @@ function KindSection({ kind, jobId, aiOn, profile, master, versions, onChanged }
         </div>
         <div className="btn-row">
           {latest && <>
-            <button className="link" onClick={() => api.openDocument(latest.id).catch(fail)}>Word</button>
-            <button className="link" onClick={() => api.openDocumentPdf(latest.id).catch(fail)}>PDF</button>
+            <button className="link" onClick={() => api.openDocumentPdf(latest.id).catch(fail)} title="Open the PDF in Preview">Open PDF</button>
+            <button className="link" onClick={() => api.openDocument(latest.id).catch(fail)} title="Open the Word file">Open Word</button>
+            <button className="link" onClick={() => saveCopy(latest, "pdf")}>Save PDF…</button>
+            <button className="link" onClick={() => saveCopy(latest, "docx")}>Save Word…</button>
+            <button className="link" onClick={() => api.revealDocument(latest.id).catch(fail)}>Show in Finder</button>
             <button className="link" onClick={() => setMode(mode === "edit" ? "none" : "edit")}>Edit</button>
             {kind === "resume" && <button className="link" onClick={() => setMode(mode === "compare" ? "none" : "compare")}>Compare</button>}
             {latest.status !== "approved" && <button className="btn small primary" disabled={blockers > 0} onClick={approve}>Approve</button>}

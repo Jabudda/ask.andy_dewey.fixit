@@ -106,6 +106,8 @@ pub fn run() {
             commands::save_document_edit,
             commands::approve_document,
             commands::open_document_pdf,
+            commands::save_document_copy,
+            commands::reveal_document,
             commands::save_credential,
             commands::delete_credential,
             commands::open_document,

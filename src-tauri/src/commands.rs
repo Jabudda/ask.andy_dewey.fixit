@@ -328,6 +328,26 @@ pub fn save_document_edit(state: S, id: i64, content: serde_json::Value) -> AppR
 pub fn approve_document(state: S, id: i64, reviewed: bool) -> AppResult<DocumentRec> {
     crate::generate::approve(&*state.conn()?, id, reviewed)
 }
+/// Saves a copy of a document (Word or PDF) wherever the user chose in the Save dialog.
+#[tauri::command]
+pub fn save_document_copy(state: S, id: i64, format: String, dest: String) -> AppResult<()> {
+    let d = db::get_document(&*state.conn()?, id)?;
+    let src = match format.as_str() {
+        "pdf" => d.pdf_path.ok_or_else(|| AppError::invalid("This document has no PDF version"))?,
+        _ => d.stored_path,
+    };
+    std::fs::copy(&src, &dest).map_err(AppError::other)?;
+    db::log(&*state.conn()?, "info", "documents", &format!("Saved a copy of document #{id} ({format}) to {dest}"));
+    Ok(())
+}
+/// Shows the document's file in Finder.
+#[tauri::command]
+pub fn reveal_document(state: S, id: i64) -> AppResult<()> {
+    let d = db::get_document(&*state.conn()?, id)?;
+    let p = d.pdf_path.unwrap_or(d.stored_path);
+    std::process::Command::new("open").arg("-R").arg(p).spawn().map_err(AppError::other)?;
+    Ok(())
+}
 #[tauri::command]
 pub fn open_document_pdf(state: S, id: i64) -> AppResult<()> {
     let d = db::get_document(&*state.conn()?, id)?;
