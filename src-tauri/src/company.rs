@@ -101,18 +101,61 @@ pub fn save_terms(c: &Connection, employer: &str, terms: Vec<CompanyTerm>) -> Ap
     Ok(r)
 }
 
-const ATS_HOSTS: [&str; 22] = [
-    "paylocity", "greenhouse", "lever.co", "myworkdayjobs", "workday", "indeed", "linkedin", "icims", "smartrecruiters",
-    "ziprecruiter", "jobvite", "ultipro", "ukg", "adp", "taleo", "oraclecloud", "successfactors", "bamboohr", "glassdoor",
-    "applytojob", "recruitee", "ashbyhq",
+/// Sites that host other companies' jobs or write about them: never "the company's own website".
+const NOT_COMPANY_SITES: [&str; 52] = [
+    // applicant tracking systems
+    "paylocity", "greenhouse", "lever.co", "myworkdayjobs", "workday", "icims", "smartrecruiters", "jobvite", "ultipro", "ukg",
+    "adp.com", "taleo", "oraclecloud", "successfactors", "bamboohr", "applytojob", "recruitee", "ashbyhq", "rippling",
+    "dayforcehcm", "breezy.hr", "workable", "jazzhr", "paycomonline", "teamtailor",
+    // job boards
+    "indeed", "linkedin", "glassdoor", "ziprecruiter", "himalayas", "jobicy", "remoteok", "weworkremotely", "wellfound",
+    "builtin", "simplyhired", "careerbuilder", "monster.com", "dice.com", "flexjobs", "remotive", "workingnomads", "usajobs",
+    // news and company directories
+    "forbes", "bloomberg", "crunchbase", "wikipedia", "techcrunch", "businessinsider", "reuters", "cnbc", "zoominfo",
 ];
 
-/// The employer's homepage, when the saved posting link is on the employer's own site (not a job board).
+/// Why a web address can't be the company's own site, if it can't.
+pub fn not_company_site(host: &str) -> Option<&'static str> {
+    let h = host.to_lowercase();
+    NOT_COMPANY_SITES.iter().find(|s| h.contains(*s)).copied()
+}
+
+/// Words of the employer's name that identify it ("truv", "allone"), skipping generic ones.
+pub fn name_tokens(employer: &str) -> Vec<String> {
+    const GENERIC: [&str; 24] = [
+        "health", "group", "services", "service", "solutions", "technologies", "technology", "systems", "global",
+        "international", "resources", "labs", "software", "partners", "holdings", "consulting", "national", "american",
+        "united", "first", "and", "for", "of", "the",
+    ];
+    let key = employer_key(employer);
+    let mut t: Vec<String> = key.split(' ').filter(|w| w.len() >= 3 && !GENERIC.contains(w)).map(String::from).collect();
+    if t.is_empty() {
+        // A name made only of generic words ("Health Resources"): use it whole.
+        let whole: String = key.split(' ').collect();
+        if whole.len() >= 3 {
+            t.push(whole);
+        }
+    }
+    t
+}
+
+fn compact(s: &str) -> String {
+    s.to_lowercase().chars().filter(|c| c.is_alphanumeric()).collect()
+}
+
+/// The text names the employer (spacing and punctuation ignored: "AllOne", "All One", "allone.com").
+pub fn mentions_employer(text: &str, employer: &str) -> bool {
+    let t = compact(text);
+    name_tokens(employer).iter().any(|n| t.contains(n.as_str()))
+}
+
+/// The employer's homepage, but only when a saved link is on a site named after the employer
+/// (never a job board, even one this app doesn't know).
 pub fn suggest_website(job: &crate::models::Job) -> Option<String> {
     for u in [&job.draft.posting_url, &job.draft.apply_url].into_iter().flatten() {
         if let Ok(p) = url::Url::parse(u) {
             let host = p.host_str().unwrap_or("").to_lowercase();
-            if !host.is_empty() && !ATS_HOSTS.iter().any(|a| host.contains(a)) {
+            if !host.is_empty() && not_company_site(&host).is_none() && mentions_employer(&host, &job.draft.employer) {
                 return Some(format!("{}://{}/", p.scheme(), host));
             }
         }
@@ -330,10 +373,22 @@ const STOPWORDS: [&str; 89] = [
     "out", "up", "here", "within", "after", "before", "just", "very", "through", "between", "when", "where", "if", "there",
     "them", "i", "my", "me", "he", "she", "his", "her",
 ];
-const NOISE: [&str; 24] = [
+/// Button and link text ("read the case study", "view the full library") is not company language.
+const CTA_STARTS: [&str; 24] = [
+    "read", "view", "see", "get", "set", "learn", "download", "watch", "explore", "book", "request", "contact", "start",
+    "try", "join", "sign", "click", "find", "discover", "schedule", "browse", "visit", "talk", "call",
+];
+/// Words addressed to the site's visitor, as in forms and sign-up prompts.
+const VISITOR_WORDS: [&str; 12] = ["you", "your", "you're", "you'll", "yours", "please", "enter", "email", "we'll", "what's", "per", "submit"];
+/// Words that leave a phrase as a sentence fragment when they start or end it.
+const FRAGMENT_EDGES: [&str; 18] = [
+    "though", "although", "many", "much", "say", "says", "comes", "next", "do", "does", "did", "let", "lets", "let's",
+    "we're", "you're", "they're", "it's",
+];
+const NOISE: [&str; 28] = [
     "learn more", "read more", "contact us", "click", "privacy", "cookie", "copyright", "rights reserved", "pinterest",
     "facebook", "linkedin", "twitter", "instagram", "youtube", "sign up", "log in", "login", "subscribe", "menu", "skip to",
-    "request a demo", "get started", "newsletter", "javascript",
+    "request a demo", "get started", "newsletter", "javascript", "case study", "content library", "book a demo", "free trial",
 ];
 
 fn words(s: &str) -> Vec<(String, String)> {
@@ -362,7 +417,9 @@ pub fn recurring_phrases(pages: &[(String, Vec<String>)], employer: &str) -> Vec
             let t = plain(l);
             // Testimonials ("I feel better after...") are customers' words, not the company's.
             let first_person = format!(" {} ", t.to_lowercase()).contains(" i ") || t.to_lowercase().contains(" my ");
-            if t.len() < 12 || first_person || NOISE.iter().any(|n| t.to_lowercase().contains(n)) {
+            // Questions and form labels ("What's your use case?", "Work email") talk to the visitor.
+            let question = t.trim_end().ends_with('?');
+            if t.len() < 12 || first_person || question || NOISE.iter().any(|n| t.to_lowercase().contains(n)) {
                 continue;
             }
             for seg in t.split([',', ';', ':', '.', '!', '?', '(', ')', '|', '–', '—']) {
@@ -371,10 +428,15 @@ pub fn recurring_phrases(pages: &[(String, Vec<String>)], employer: &str) -> Vec
                 for win in ws.windows(n) {
                     let first = &win[0].0;
                     let last = &win[n - 1].0;
-                    if STOPWORDS.contains(&first.as_str()) || STOPWORDS.contains(&last.as_str()) {
+                    if STOPWORDS.contains(&first.as_str()) || STOPWORDS.contains(&last.as_str()) || CTA_STARTS.contains(&first.as_str()) || FRAGMENT_EDGES.contains(&first.as_str()) || FRAGMENT_EDGES.contains(&last.as_str()) {
                         continue;
                     }
                     if win.iter().any(|(w, _)| name_words.contains(w) || w.chars().all(|c| c.is_ascii_digit()) || w.len() < 2) {
+                        continue;
+                    }
+                    // "overviewoverview": menu labels run together by the page's markup.
+                    let doubled = |w: &str| w.len() >= 6 && w.len() % 2 == 0 && w.is_char_boundary(w.len() / 2) && w[..w.len() / 2] == w[w.len() / 2..];
+                    if win.iter().any(|(w, _)| VISITOR_WORDS.contains(&w.as_str()) || doubled(w)) {
                         continue;
                     }
                     if win.iter().filter(|(w, _)| STOPWORDS.contains(&w.as_str())).count() > (n - 1) / 2 {
@@ -498,6 +560,12 @@ pub async fn read_site(website: &str, employer: &str, job_title: &str) -> AppRes
     if !matches!(base.scheme(), "http" | "https") || base.host_str().is_none() {
         return Err(AppError::invalid("Enter the company's website, for example https://www.example.com"));
     }
+    if let Some(site) = not_company_site(base.host_str().unwrap_or("")) {
+        return Err(AppError::invalid(format!(
+            "{} is a job board or news site ({site}), not {employer}'s own website. Enter the address of {employer}'s own homepage.",
+            base.host_str().unwrap_or("")
+        )));
+    }
     let cl = client()?;
     let mut root = base.clone();
     root.set_path("/");
@@ -525,6 +593,14 @@ pub async fn read_site(website: &str, employer: &str, job_title: &str) -> AppRes
             }
             Err(e) => skipped.push(format!("{u} ({e})")),
         }
+    }
+    // Make sure these pages are about this employer before using a word of them.
+    let about_them = pages.iter().filter(|(u, h)| mentions_employer(&format!("{u} {} {}", title_of(h), page_lines(h).join(" ")), employer)).count();
+    if about_them == 0 {
+        return Err(AppError::invalid(format!(
+            "None of the pages read at {} mention {employer}, so this doesn't look like their website. Check the address and try again.",
+            home_url.host_str().unwrap_or("")
+        )));
     }
     let terms = extract(employer, &home, &pages);
     Ok(CompanyResearch {
@@ -664,8 +740,50 @@ mod tests {
         j.draft.posting_url = Some("https://recruiting.paylocity.com/Recruiting/Jobs/Details/1".into());
         j.draft.apply_url = None;
         assert_eq!(suggest_website(&j), None);
+        j.draft.employer = "Acme Care".into();
         j.draft.apply_url = Some("https://careers.acme.test/jobs/9".into());
         assert_eq!(suggest_website(&j).as_deref(), Some("https://careers.acme.test/"));
         assert_eq!(employer_key("Acme Health Resources, Inc."), "acme health resources");
+        // Job boards this app has never heard of are not suggested either: the host must carry the employer's name.
+        j.draft.employer = "Truv".into();
+        j.draft.posting_url = Some("https://himalayas.app/companies/truv/jobs/technical-support-engineer".into());
+        j.draft.apply_url = Some("https://some-new-board.io/jobs/truv-support".into());
+        assert_eq!(suggest_website(&j), None);
+        j.draft.apply_url = Some("https://www.truv.com/careers/support".into());
+        assert_eq!(suggest_website(&j).as_deref(), Some("https://www.truv.com/"));
+    }
+
+    #[test]
+    fn buttons_forms_and_menus_are_not_company_language() {
+        let page = |body: &str| format!("<html><title>Truv</title><body>{body}</body></html>");
+        let a = page("<p>Read the case study about bank income verification.</p><p>What's your use case?</p><p>Work email please enter your address now.</p><p>Auto lending overviewoverview menu items here.</p><p>Bank income verification for lenders.</p>");
+        let b = page("<p>Read the case study about bank income verification.</p><p>What's your use case?</p><p>Work email please enter your address now.</p><p>Auto lending overviewoverview menu items here.</p><p>Faster bank income verification today.</p>");
+        let pages = vec![("https://truv.test/".to_string(), a), ("https://truv.test/about".to_string(), b)];
+        let found: Vec<String> = recurring_phrases(&pages.iter().map(|(u, h)| (u.clone(), page_lines(h))).collect::<Vec<_>>(), "Truv").into_iter().map(|t| t.term).collect();
+        assert!(found.contains(&"bank income verification".to_string()), "{found:?}");
+        for junk in ["read the case", "case study", "use case", "work email", "please enter", "overviewoverview"] {
+            assert!(!found.iter().any(|f| f.contains(junk)), "{junk} in {found:?}");
+        }
+    }
+
+    #[test]
+    fn job_boards_and_news_sites_are_not_company_websites() {
+        for h in ["himalayas.app", "jobicy.com", "www.forbes.com", "www.linkedin.com", "boards.greenhouse.io", "jobs.dayforcehcm.com"] {
+            assert!(not_company_site(h).is_some(), "{h}");
+        }
+        for h in ["allonehealth.com", "www.truv.com", "starlink.com", "maze.co"] {
+            assert!(not_company_site(h).is_none(), "{h}");
+        }
+    }
+
+    #[test]
+    fn pages_must_name_the_employer() {
+        assert_eq!(name_tokens("AllOne Health Resources Inc"), vec!["allone"]);
+        assert_eq!(name_tokens("Health Resources"), vec!["healthresources"]);
+        assert!(mentions_employer("Welcome to All One Health", "AllOne Health Resources Inc"));
+        assert!(mentions_employer("https://www.truv.com/ Truv | Income verification", "Truv"));
+        assert!(!mentions_employer("Himalayas is the leading remote job board", "Fortive"));
+        // Generic words alone don't count as a mention.
+        assert!(!mentions_employer("Your health resources for remote jobs", "Acme Health Resources"));
     }
 }
