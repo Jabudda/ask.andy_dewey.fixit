@@ -8,6 +8,7 @@ import { JobForm } from "../components/JobForm";
 import { ScoreCard } from "../components/ScoreCard";
 import { DocumentsPanel } from "../components/DocumentsPanel";
 import { CompanyResearchCard } from "../components/CompanyResearchCard";
+import { JobEmailCard } from "./Email";
 import { Card, EligibilityBadge, Empty, Field, RemoteBadge, SalaryBadge, StatusBadge, confirmAction, useToast } from "../components/ui";
 import type { Nav } from "../App";
 
@@ -113,6 +114,7 @@ export function JobDetail({ id, go }: { id: number; go: Nav }) {
           <Interviews jobId={j.id} items={d.interviews} onChanged={load} />
           <Reminders jobId={j.id} items={d.reminders} onChanged={load} />
           <Contacts jobId={j.id} items={d.contacts} onChanged={load} />
+          <JobEmailCard jobId={j.id} go={go} onChanged={load} />
           <Card title="Status history">
             <ol className="timeline">
               {d.history.map((h) => (

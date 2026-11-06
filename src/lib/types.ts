@@ -252,3 +252,61 @@ export interface CompanyResearch {
   terms: CompanyTerm[]; fetchedAt: string; skipped: string[];
 }
 export interface CompanyResearchView { research: CompanyResearch | null; suggestedWebsite: string | null }
+
+// ── Email (read-only Gmail) ──
+export type AlertOutcome = "" | "added" | "duplicate" | "filtered" | "excluded" | "incomplete" | "error";
+export interface AlertJob {
+  title: string;
+  employer: string;
+  location: string;
+  url: string;
+  details: string[];
+  outcome: AlertOutcome;
+  reason: string;
+  jobId: number | null;
+}
+export type EmailCategory = "alert" | "confirmation" | "rejection" | "interview" | "assessment" | "offer" | "recruiter" | "sent" | "other";
+export interface EmailMessage {
+  id: string;
+  threadId: string;
+  direction: "in" | "out";
+  fromAddr: string;
+  fromName: string;
+  toAddrs: string;
+  subject: string;
+  snippet: string;
+  sentAt: string;
+  category: EmailCategory;
+  board: string;
+  jobId: number | null;
+  jobLabel: string | null;
+  jobStatus: string | null;
+  matchNote: string;
+  matchManual: boolean;
+  suggestion: string | null;
+  suggestionState: "" | "pending" | "accepted" | "dismissed" | "stale";
+  alertJobs: AlertJob[];
+}
+export interface EmailStatus {
+  configured: boolean;
+  connected: boolean;
+  address: string;
+  lastSync: string | null;
+  lastError: string | null;
+  intervalMinutes: number;
+  syncing: boolean;
+  total: number;
+  alerts: number;
+  jobsFromEmail: number;
+  linked: number;
+  pending: number;
+}
+export interface SyncSummary {
+  checked: number;
+  newMessages: number;
+  alerts: number;
+  jobsAdded: number;
+  linked: number;
+  suggestions: number;
+  moreWaiting: boolean;
+}

@@ -298,3 +298,22 @@ input[type="range"] { padding: 0; accent-color: var(--accent-strong); }
 .chip.term label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
 .chip.term input { margin: 0; }
 .row-inline { display: flex; gap: 8px; align-items: center; margin: 8px 0; } .row-inline input { flex: 1; }
+
+/* ── Email ── */
+.setup-steps { margin: 6px 0 10px; padding-left: 20px; line-height: 1.6; }
+.setup-steps li { margin-bottom: 4px; }
+.stat-row { display: flex; flex-wrap: wrap; gap: 12px 28px; margin-bottom: 12px; }
+.suggestion-row { align-items: flex-start; gap: 12px; }
+.email-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.email-item + .email-item { border-top: 1px solid var(--border); }
+.email-head { all: unset; box-sizing: border-box; width: 100%; display: flex; gap: 10px; align-items: center; padding: 9px 12px; cursor: pointer; }
+.email-head:hover { background: var(--surface-2); }
+.email-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.email-dir { color: var(--text-muted); width: 16px; text-align: center; flex: none; }
+.email-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.email-subject { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.email-tags { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; max-width: 50%; }
+.email-body { padding: 4px 12px 12px 38px; display: flex; flex-direction: column; gap: 8px; }
+.email-link-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.email-link-row select { max-width: 460px; }
+.email-text { white-space: pre-wrap; word-break: break-word; font: inherit; font-size: 12px; color: var(--text-secondary); background: var(--surface-2); border-radius: 6px; padding: 10px; max-height: 320px; overflow: auto; margin: 0; }

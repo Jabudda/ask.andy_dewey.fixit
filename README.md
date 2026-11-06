@@ -20,9 +20,17 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture, database 
 | Applying | "Open the application page" opens the employer's official site; Copy buttons for each answer | |
 | Confirmation and follow-up | Submitted needs the employer's confirmation; a follow-up reminder is added automatically (7 days by default) | ✓ |
 | Tracker import | Applications you sent before the app existed are imported as history and skip the approval gate | ✓ |
+| Email monitoring (opt-in, read-only) | **Email** connects one Gmail account with Google's read-only permission (it can't send, delete, label or mark as read). The OAuth client and sign-in live in the macOS Keychain. It checks every 30 minutes while the app is open, or when you click Check now. Messages are sorted on this Mac by rules; none of their content is sent to Claude or anywhere else | ✓ (rules and storage; Google sign-in not testable offline) |
+| Job alerts → jobs | Alerts from Indeed, LinkedIn, ZipRecruiter, Glassdoor and other boards are read for title, company, location and link, then go through the same relevance, requirement and duplicate checks as search results. Each email shows what happened to every job, with **Add anyway…** for the ones left out and **Read again** after a rule fix | ✓ |
+| Application mail | Received and sent mail is linked to an application by thread, saved contact, the employer's email domain, sender name, and the job title. It's labelled as received, interview, assessment, offer, not moving forward, or recruiter. The job's page shows its email history, and you can relink anything matched wrongly | ✓ |
+| Proposed status changes | A confirmation, interview invite, offer or rejection proposes Submitted, Interviewing, Offer or Rejected. Nothing changes until you click **Mark as…** in **Email → Waiting for your OK**, and the change still goes through the approval gate | ✓ |
 | Company language | **Job → Company language → Read website** reads up to 6 public pages of the employer's own site (home, about, mission, values, careers), following robots.txt and sending nothing about you. It finds the mission, values, tagline and phrases the site repeats; you tick the ones to use or add your own. Claude echoes a few of them only where your own facts back them up, and the claim checker blocks resume lines backed only by the website | ✓ |
 
-Not yet: filling in application forms in the browser automatically, and opt-in read-only email monitoring. The app never submits an application itself.
+Not yet: filling in application forms in the browser automatically, and Outlook. The app never submits an application itself or sends email.
+
+**Email setup:** see **Email → Connect your job-search Gmail** in the app. It takes about 10 minutes in Google Cloud (a free project, the Gmail API turned on, and a Desktop OAuth client) and only has to be done once. While the Google project is in *Testing*, Google signs the app out after 7 days; publishing it for your own use avoids that.
+
+**Known weak spots:** job boards change their alert layouts without notice, so expect parsing to need fixes (the email's text is kept so it can be read again). Mail from recruiting agencies, or several applications to one employer, may link to the wrong job; you can relink it with one click.
 
 ## Phase 3 status: tailored resumes and cover letters
 

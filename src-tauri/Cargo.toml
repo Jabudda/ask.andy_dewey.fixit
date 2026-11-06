@@ -26,6 +26,7 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 csv = "1"
 rust_xlsxwriter = "0.79"
 sha2 = "0.10"
+base64 = "0.22"
 url = "2"
 tokio = { version = "1", features = ["time"] }
 thiserror = "1"

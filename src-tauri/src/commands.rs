@@ -570,3 +570,96 @@ pub fn save_company_terms(state: S, job_id: i64, terms: Vec<crate::company::Comp
     let job = db::get_job(&c, job_id)?;
     crate::company::save_terms(&c, &job.draft.employer, terms)
 }
+
+// ── email (read-only Gmail) ──
+use crate::email::{EmailMessage, EmailStatus, SyncSummary};
+
+#[tauri::command]
+pub fn email_status(state: S) -> AppResult<EmailStatus> {
+    crate::email::status(&*state.conn()?)
+}
+#[tauri::command]
+pub fn email_save_client(state: S, client_id: String, client_secret: String) -> AppResult<EmailStatus> {
+    let id = client_id.trim();
+    if !id.ends_with(".apps.googleusercontent.com") {
+        return Err(AppError::invalid("The client ID should end in .apps.googleusercontent.com (copy it from the Google Cloud credentials page)"));
+    }
+    crate::secrets::set(crate::gmail::CLIENT_ID, id)?;
+    if !client_secret.trim().is_empty() {
+        crate::secrets::set(crate::gmail::CLIENT_SECRET, client_secret.trim())?;
+    }
+    let c = state.conn()?;
+    db::log(&c, "info", "email", "Google OAuth client saved to the macOS Keychain");
+    crate::email::status(&c)
+}
+#[tauri::command]
+pub async fn email_connect(state: State<'_, AppState>) -> AppResult<EmailStatus> {
+    let result = crate::gmail::connect(None).await;
+    let c = state.conn()?;
+    match result {
+        Ok(addr) => {
+            db::set_setting(&c, "gmail_address", &addr)?;
+            db::set_setting(&c, "gmail_last_error", "")?;
+            db::log(&c, "info", "email", "Gmail connected (read-only)");
+            crate::email::status(&c)
+        }
+        Err(e) => {
+            db::log(&c, "error", "email", &format!("Gmail connection failed: {e}"));
+            Err(e)
+        }
+    }
+}
+#[tauri::command]
+pub async fn email_disconnect(state: State<'_, AppState>) -> AppResult<EmailStatus> {
+    crate::gmail::disconnect().await?;
+    let c = state.conn()?;
+    db::set_setting(&c, "gmail_address", "")?;
+    db::log(&c, "info", "email", "Gmail disconnected; sign-in removed from the Keychain and revoked at Google");
+    crate::email::status(&c)
+}
+#[tauri::command]
+pub fn email_forget(state: S) -> AppResult<usize> {
+    let c = state.conn()?;
+    let n = crate::email::forget_all(&c)?;
+    db::log(&c, "info", "email", &format!("Removed {n} stored emails from this Mac (Gmail untouched)"));
+    Ok(n)
+}
+#[tauri::command]
+pub async fn email_sync(state: State<'_, AppState>) -> AppResult<SyncSummary> {
+    let path = state.data_dir.join(crate::DB_FILE);
+    crate::email::sync(&path, "manual").await
+}
+#[tauri::command]
+pub fn email_list(state: S, filter: String) -> AppResult<Vec<EmailMessage>> {
+    crate::email::list(&*state.conn()?, &filter, 300)
+}
+#[tauri::command]
+pub fn email_body(state: S, id: String) -> AppResult<String> {
+    crate::email::body(&*state.conn()?, &id)
+}
+#[tauri::command]
+pub fn email_accept(state: S, id: String) -> AppResult<Job> {
+    crate::email::accept(&*state.conn()?, &id)
+}
+#[tauri::command]
+pub fn email_dismiss(state: S, id: String) -> AppResult<()> {
+    crate::email::dismiss(&*state.conn()?, &id)
+}
+#[tauri::command]
+pub fn email_link(state: S, id: String, job_id: Option<i64>) -> AppResult<EmailMessage> {
+    crate::email::set_link(&*state.conn()?, &id, job_id)
+}
+#[tauri::command]
+pub fn email_add_alert_job(state: S, id: String, index: usize, edited: Option<crate::alerts::AlertJob>) -> AppResult<EmailMessage> {
+    crate::email::add_alert_anyway(&*state.conn()?, &id, index, edited)
+}
+#[tauri::command]
+pub fn email_reread(state: S, id: String) -> AppResult<EmailMessage> {
+    crate::email::reread(&*state.conn()?, &id)
+}
+#[tauri::command]
+pub fn email_set_interval(state: S, minutes: i64) -> AppResult<EmailStatus> {
+    let c = state.conn()?;
+    crate::email::set_interval(&c, minutes)?;
+    crate::email::status(&c)
+}

@@ -17,6 +17,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/004_internal_candidate.sql"),
     include_str!("../migrations/005_application_assist.sql"),
     include_str!("../migrations/006_company_research.sql"),
+    include_str!("../migrations/007_email.sql"),
 ];
 pub const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;
 

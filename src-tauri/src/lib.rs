@@ -1,5 +1,6 @@
 pub mod command_center;
 pub mod ai;
+pub mod alerts;
 pub mod application;
 pub mod commands;
 pub mod company;
@@ -9,9 +10,11 @@ pub mod docgen;
 pub mod db;
 pub mod documents;
 pub mod eligibility;
+pub mod email;
 pub mod error;
 pub mod export;
 pub mod generate;
+pub mod gmail;
 pub mod models;
 pub mod parse;
 pub mod scoring;
@@ -56,6 +59,22 @@ fn start_scheduler(handle: tauri::AppHandle, db_path: std::path::PathBuf) {
     });
 }
 
+/// Checks the job-search Gmail account on its own interval (settings; 0 = off) while the app is open.
+fn start_email_checks(handle: tauri::AppHandle, db_path: std::path::PathBuf) {
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(45));
+        loop {
+            let due = db::open(&db_path).map(|c| email::due(&c, chrono::Local::now().naive_local())).unwrap_or(false);
+            if due {
+                if let Ok(s) = tauri::async_runtime::block_on(email::sync(&db_path, "scheduled")) {
+                    let _ = handle.emit("email-synced", &s);
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_secs(60));
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -72,10 +91,25 @@ pub fn run() {
             db::log(&conn, "info", "app", &format!("Started v{}", env!("CARGO_PKG_VERSION")));
             app.manage(AppState { db: Mutex::new(conn), data_dir: data_dir.clone() });
             start_scheduler(app.handle().clone(), data_dir.join(DB_FILE));
+            start_email_checks(app.handle().clone(), data_dir.join(DB_FILE));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
+            commands::email_status,
+            commands::email_save_client,
+            commands::email_connect,
+            commands::email_disconnect,
+            commands::email_forget,
+            commands::email_sync,
+            commands::email_list,
+            commands::email_body,
+            commands::email_accept,
+            commands::email_dismiss,
+            commands::email_link,
+            commands::email_add_alert_job,
+            commands::email_reread,
+            commands::email_set_interval,
             commands::company_research,
             commands::research_company,
             commands::save_company_terms,

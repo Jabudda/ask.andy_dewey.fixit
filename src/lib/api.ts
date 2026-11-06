@@ -3,6 +3,7 @@ import type {
   CompanyResearch, CompanyResearchView, CompanyTerm,
   Accomplishment, AppInfo, Certification, Contact, DashboardStats, DocumentImportResult, Experience, Interview, Job,
   AiSettings, AiUsageSummary, BankAnswer, Decision, JobAnswer, Packet, QueueItem, Generated, PreparedGeneration, Education, ImportReport, JobSource, RunSummary, SearchRun, SearchSettings, JobDetail, JobDraft, LogEntry, Preferences, ProfileBasics, ProfileBundle, Reminder, SaveJobResult, Skill, StatusChange,
+  AlertJob, EmailMessage, EmailStatus, SyncSummary,
 } from "./types";
 
 /** True when running inside the Tauri shell (false in a plain browser tab). */
@@ -96,6 +97,21 @@ export const api = {
   listLogs: (query: string) => call<LogEntry[]>("list_logs", { query }),
   loadSampleData: () => call<number>("load_sample_data"),
   removeSampleData: () => call<number>("remove_sample_data"),
+
+  emailStatus: () => call<EmailStatus>("email_status"),
+  emailSaveClient: (clientId: string, clientSecret: string) => call<EmailStatus>("email_save_client", { clientId, clientSecret }),
+  emailConnect: () => call<EmailStatus>("email_connect"),
+  emailDisconnect: () => call<EmailStatus>("email_disconnect"),
+  emailForget: () => call<number>("email_forget"),
+  emailSync: () => call<SyncSummary>("email_sync"),
+  emailList: (filter: string) => call<EmailMessage[]>("email_list", { filter }),
+  emailBody: (id: string) => call<string>("email_body", { id }),
+  emailAccept: (id: string) => call<Job>("email_accept", { id }),
+  emailDismiss: (id: string) => call<void>("email_dismiss", { id }),
+  emailLink: (id: string, jobId: number | null) => call<EmailMessage>("email_link", { id, jobId }),
+  emailAddAlertJob: (id: string, index: number, edited: AlertJob | null) => call<EmailMessage>("email_add_alert_job", { id, index, edited }),
+  emailReread: (id: string) => call<EmailMessage>("email_reread", { id }),
+  emailSetInterval: (minutes: number) => call<EmailStatus>("email_set_interval", { minutes }),
 };
 
 export function errorText(e: unknown): string {

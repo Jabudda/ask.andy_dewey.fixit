@@ -1,10 +1,10 @@
-//! API keys live in the macOS Keychain (service "com.projectnextchapter.app"), never in SQLite,
+//! API keys and the Gmail sign-in live in the macOS Keychain (service "com.projectnextchapter.app"), never in SQLite,
 //! logs, exports, backups or the repository. The UI only ever learns whether a key is present.
 
 use crate::error::{AppError, AppResult};
 
 pub const SERVICE: &str = "com.projectnextchapter.app";
-pub const NAMES: [&str; 2] = ["usajobs", "anthropic"];
+pub const NAMES: [&str; 5] = ["usajobs", "anthropic", "gmail_client_id", "gmail_client_secret", "gmail_refresh"];
 
 fn entry(name: &str) -> AppResult<keyring::Entry> {
     if !NAMES.contains(&name) {
