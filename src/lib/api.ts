@@ -111,6 +111,7 @@ export const api = {
   emailLink: (id: string, jobId: number | null) => call<EmailMessage>("email_link", { id, jobId }),
   emailAddAlertJob: (id: string, index: number, edited: AlertJob | null) => call<EmailMessage>("email_add_alert_job", { id, index, edited }),
   emailReread: (id: string) => call<EmailMessage>("email_reread", { id }),
+  emailRereadAll: () => call<[number, number]>("email_reread_all"),
   emailSetInterval: (minutes: number) => call<EmailStatus>("email_set_interval", { minutes }),
 };
 

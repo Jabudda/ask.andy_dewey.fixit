@@ -148,6 +148,10 @@ static RE_CONFIRM: LazyLock<Regex> = LazyLock::new(|| {
     )
     .unwrap()
 });
+/// Account mail from a job board (codes, password resets): never an alert.
+static RE_ACCOUNT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)verification code|with code:?\s*\d|confirm your (?:new )?email|verify your|password|sign-?in (?:attempt|alert|code)|security alert|one-time (?:code|passcode)").unwrap()
+});
 static RE_JOB_WORDS: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\b(?:position|role|opportunit(?:y|ies)|resume|candidate|candidacy|hiring|recruit(?:er|ing)|interview|application)\b").unwrap()
 });
@@ -183,6 +187,9 @@ pub fn classify(direction: &str, from_addr: &str, board: Option<&str>, subject: 
         return "confirmation";
     }
     if board.is_some() {
+        if RE_ACCOUNT.is_match(subject) {
+            return "other";
+        }
         return if alert_jobs > 0 { "alert" } else { "other" };
     }
     if !no_reply(from_addr) && RE_JOB_WORDS.is_match(&t) {
@@ -738,6 +745,23 @@ pub fn reread(c: &Connection, id: &str) -> AppResult<EmailMessage> {
     get(c, id)
 }
 
+/// Reads every stored job-board email again with the current rules. Returns (emails, jobs added).
+pub fn reread_all(c: &Connection) -> AppResult<(usize, i64)> {
+    let ids: Vec<String> = {
+        let mut st = c.prepare("SELECT id FROM email_messages WHERE body_html != '' ORDER BY sent_at")?;
+        let v = st.query_map([], |r| r.get(0))?.collect::<Result<Vec<_>, _>>()?;
+        v
+    };
+    let mut added = 0;
+    for id in &ids {
+        let before = get(c, id)?.alert_jobs.iter().filter(|j| j.outcome == "added").count() as i64;
+        let after = reread(c, id)?.alert_jobs.iter().filter(|j| j.outcome == "added").count() as i64;
+        added += (after - before).max(0);
+    }
+    db::log(c, "info", "email", &format!("Read {} job-board emails again: {added} more jobs added", ids.len()));
+    Ok((ids.len(), added))
+}
+
 /// Removes every stored email from this Mac (Gmail itself is untouched). Jobs already added stay.
 pub fn forget_all(c: &Connection) -> AppResult<usize> {
     let n = c.execute("DELETE FROM email_messages", [])?;
@@ -902,6 +926,7 @@ mod tests {
         assert_eq!(classify("in", "jobs-noreply@linkedin.com", Some("LinkedIn"), "Your application was sent to Acme Care", "", 6), "confirmation");
         assert_eq!(classify("in", "indeedapply@indeed.com", Some("Indeed"), "Indeed Application: Call Center Supervisor", "", 0), "confirmation");
         assert_eq!(classify("in", "news@indeed.com", Some("Indeed"), "Career tips", "Read more", 0), "other");
+        assert_eq!(classify("in", "no-reply@indeed.com", Some("Indeed"), "Confirm your new email address on Indeed with code: 123456.", "", 2), "other");
     }
 
     #[test]

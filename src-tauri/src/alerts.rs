@@ -117,7 +117,7 @@ fn job_key(href: &str) -> Option<(String, String)> {
         return h.contains("/job-listing/").then(|| (String::new(), href.to_string()));
     }
     if h.contains("ziprecruiter.") {
-        return ["/k/", "/km/", "/jobs/", "/job/", "/c/", "/ojob/", "/job-redirect"].iter().any(|p| h.contains(p)).then(|| (String::new(), href.to_string()));
+        return ["/k/", "/km/", "/ekm/", "/jobs/", "/job/", "/c/", "/ojob/", "/job-redirect"].iter().any(|p| h.contains(p)).then(|| (String::new(), href.to_string()));
     }
     // Other boards: any link that isn't plainly account or marketing furniture.
     let furniture = ["unsubscribe", "preferences", "settings", "privacy", "terms", "help", "support", "apps.apple", "play.google", "/login", "/signin", "mailto:", "/search", "/alerts", "/notifications"];
@@ -131,7 +131,7 @@ static RE_NOT_TITLE: LazyLock<Regex> = LazyLock::new(|| {
             download|sign\ in|log\ in|learn\ more|read\ more|more\b|click|tap\b|continue|upload|complete\ your|jobs?\ for\ you|recommended|
             new\b$|new\ to\ you|promoted|actively\ (?:recruiting|hiring)|be\ an\ early|urgently\ hiring|hiring\ (?:multiple|now)|just\ posted|responsive\ employer|
             top\ applicant|you\ (?:may|might|could|are|have)|your\b|we\b|this\ (?:job|email)|these\b|based\ on|similar\b|because\ you|job\ alert|daily\ digest|
-            privacy|terms|help|feedback|copyright|©|indeed|linkedin|ziprecruiter|glassdoor|\$|\d+\s*(?:days?|hours?|minutes?|d|h)\b|\d+\+?\s+(?:applicants|jobs|new)|
+            privacy|terms|help|feedback|copyright|©|logos?\ provided|let\ us\ know|access\ \w+\ anywhere|confirm\b|verify\b|indeed|linkedin|ziprecruiter|glassdoor|\$|\d+\s*(?:days?|hours?|minutes?|d|h)\b|\d+\+?\s+(?:applicants|jobs|new)|
             posted\b|reposted|today\b|yesterday|salary|estimated|employer\ est|full[-\ ]time$|part[-\ ]time$|contract$|remote$|hybrid$|on-?site$
         )",
     )
@@ -145,6 +145,12 @@ static RE_LOCATION: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 static RE_RATING: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\d(?:\.\d)?\s*(?:★|stars?|\*)?$").unwrap());
+
+/// A line that is a place, not a company: "Milwaukee, WI", "Remote", "United States (Remote)".
+/// A long name that merely contains "USA" ("Contoso Dairy USA Inc") is a company.
+fn place_like(s: &str) -> bool {
+    s.contains(',') && RE_LOCATION.is_match(s) || RE_LOCATION.find(s).is_some_and(|m| m.start() == 0)
+}
 
 fn title_like(s: &str) -> bool {
     let words = s.split_whitespace().count();
@@ -232,7 +238,9 @@ pub fn parse(html: &str) -> Vec<AlertJob> {
         let mut used = 0;
         if let Some(first) = rest.first() {
             let (co, loc) = split_company_location(first);
-            if !RE_LOCATION.is_match(&co) || co.contains('·') {
+            // "Acme USA Inc • Franksville, WI": once the location is split off, the rest is the company
+            // even if it contains a place-like word.
+            if loc.is_some() || !place_like(&co) || co.contains('·') {
                 employer = co;
                 used = 1;
                 if let Some(l) = loc {
@@ -255,6 +263,9 @@ pub fn parse(html: &str) -> Vec<AlertJob> {
             .collect();
         if employer.chars().count() > 80 || employer.split_whitespace().count() > 8 {
             employer.clear();
+        }
+        if employer.is_empty() && location.is_empty() {
+            continue; // no company and no place: page furniture ("Logos provided by …"), not a job card
         }
         let dup = out.iter().any(|j| j.title.eq_ignore_ascii_case(&title) && j.employer.eq_ignore_ascii_case(&employer));
         if !dup {
@@ -318,6 +329,22 @@ mod tests {
     fn ignores_newsletters_without_job_cards() {
         let html = r#"<p>Tips for your search</p><a href="https://www.indeed.com/career-advice/x">Read more</a><a href="https://www.indeed.com/settings">Settings</a>"#;
         assert!(parse(html).is_empty());
+    }
+
+    #[test]
+    fn keeps_a_company_with_a_place_word_and_drops_furniture() {
+        let html = r#"<table>
+          <tr><td><a href="https://www.ziprecruiter.com/km/abc123">Project Coordinator</a></td></tr>
+          <tr><td>Contoso Dairy USA Inc • Franksville, WI • On-site</td></tr>
+          <tr><td><a href="https://www.ziprecruiter.com/km/def456">Project Coordinator II</a></td></tr>
+          <tr><td>Contoso Dairy USA Inc</td></tr>
+          <tr><td><a href="https://www.ziprecruiter.com/ojob/xyz">Logos provided by Logo.dev</a></td></tr>
+        </table>"#;
+        let jobs = parse(html);
+        assert_eq!(jobs.len(), 2, "{jobs:#?}");
+        assert_eq!(jobs[0].employer, "Contoso Dairy USA Inc");
+        assert_eq!(jobs[1].employer, "Contoso Dairy USA Inc");
+        assert_eq!(jobs[0].location, "Franksville, WI • On-site");
     }
 
     #[test]

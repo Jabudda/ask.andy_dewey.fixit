@@ -109,6 +109,7 @@ pub fn run() {
             commands::email_link,
             commands::email_add_alert_job,
             commands::email_reread,
+            commands::email_reread_all,
             commands::email_set_interval,
             commands::company_research,
             commands::research_company,

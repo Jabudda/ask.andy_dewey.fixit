@@ -128,6 +128,7 @@ export function Email({ go }: { go: Nav }) {
               </select>
             </Field>
             <div className="btn-row">
+              <button className="btn small" disabled={status.alerts === 0} title="Read stored job-board emails again with the latest rules" onClick={() => api.emailRereadAll().then(([n, added]) => { notify("ok", `Read ${n} job-board emails again: ${added} more job${added === 1 ? "" : "s"} added`); load(); }).catch(fail)}>Read all alerts again</button>
               <button className="btn small" onClick={disconnect}>Disconnect</button>
               <button className="btn small danger" disabled={status.total === 0} onClick={forget}>Delete stored emails</button>
             </div>

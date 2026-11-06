@@ -658,6 +658,10 @@ pub fn email_reread(state: S, id: String) -> AppResult<EmailMessage> {
     crate::email::reread(&*state.conn()?, &id)
 }
 #[tauri::command]
+pub fn email_reread_all(state: S) -> AppResult<(usize, i64)> {
+    crate::email::reread_all(&*state.conn()?)
+}
+#[tauri::command]
 pub fn email_set_interval(state: S, minutes: i64) -> AppResult<EmailStatus> {
     let c = state.conn()?;
     crate::email::set_interval(&c, minutes)?;
