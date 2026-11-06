@@ -309,4 +309,5 @@ export interface SyncSummary {
   linked: number;
   suggestions: number;
   moreWaiting: boolean;
+  rateLimited: boolean;
 }

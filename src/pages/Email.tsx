@@ -81,7 +81,7 @@ export function Email({ go }: { go: Nav }) {
     setChecking(true);
     try {
       const s = await api.emailSync();
-      notify("ok", `${s.newMessages} new email${s.newMessages === 1 ? "" : "s"}: ${s.jobsAdded} job${s.jobsAdded === 1 ? "" : "s"} added from alerts, ${s.linked} linked to applications, ${s.suggestions} waiting for your OK${s.moreWaiting ? ". More are waiting; check again to continue" : ""}`);
+      notify("ok", `${s.newMessages} new email${s.newMessages === 1 ? "" : "s"}: ${s.jobsAdded} job${s.jobsAdded === 1 ? "" : "s"} added from alerts, ${s.linked} linked to applications, ${s.suggestions} waiting for your OK${s.rateLimited ? ". Gmail asked the app to slow down; everything read so far is saved, and it continues on its own in a few minutes" : s.moreWaiting ? ". More are waiting; the app continues on its own in a few minutes" : ""}`);
       load();
     } catch (e) { fail(e); load(); } finally { setChecking(false); }
   };

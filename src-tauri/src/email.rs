@@ -18,6 +18,8 @@ use std::sync::LazyLock;
 
 /// Messages fetched in one sync; the rest are picked up by the next one.
 pub const MAX_PER_SYNC: usize = 300;
+/// When a check stopped with mail still waiting, the next one runs this soon instead of on the interval.
+pub const CATCH_UP_MINUTES: i64 = 3;
 const BODY_LIMIT: usize = 20_000;
 const HTML_LIMIT: usize = 400_000;
 
@@ -75,6 +77,8 @@ pub struct SyncSummary {
     pub linked: i64,
     pub suggestions: i64,
     pub more_waiting: bool,
+    /// Google's per-minute limit stopped this check early; what was read is saved.
+    pub rate_limited: bool,
 }
 
 // ───────────────────────────── addresses ─────────────────────────────
@@ -792,22 +796,25 @@ pub async fn sync(db_path: &Path, trigger: &str) -> AppResult<SyncSummary> {
             }
             v
         };
-        let more_waiting = fresh.len() > MAX_PER_SYNC;
-        let mut raws = vec![];
-        // Gmail lists newest first; fetch the oldest of the batch first so threads link in order.
-        for id in fresh.iter().rev().take(MAX_PER_SYNC) {
-            let v = gmail::get_message(&token, id).await?;
-            if let Some(m) = gmail::parse_message(&v) {
-                if !m.labels.iter().any(|l| matches!(l.as_str(), "DRAFT" | "SPAM" | "TRASH" | "CHAT")) {
-                    raws.push(m);
-                }
-            }
-        }
-        raws.sort_by_key(|m| m.date_ms);
         let c = db::open(db_path)?;
-        let mut s = SyncSummary { checked: ids.len() as i64, more_waiting, ..Default::default() };
-        for m in &raws {
-            match store(&c, m, &address) {
+        let mut s = SyncSummary { checked: ids.len() as i64, more_waiting: fresh.len() > MAX_PER_SYNC, ..Default::default() };
+        // Gmail lists newest first. Read the oldest first so replies link to their thread, and save
+        // each email as soon as it arrives, so an interruption never loses what was already read.
+        for id in fresh.iter().rev().take(MAX_PER_SYNC) {
+            let v = match gmail::get_message(&token, id).await {
+                Ok(v) => v,
+                Err(e) if gmail::is_rate_limited(&e) => {
+                    s.more_waiting = true;
+                    s.rate_limited = true;
+                    break;
+                }
+                Err(e) => return Err(e),
+            };
+            let Some(m) = gmail::parse_message(&v) else { continue };
+            if m.labels.iter().any(|l| matches!(l.as_str(), "DRAFT" | "SPAM" | "TRASH" | "CHAT")) {
+                continue;
+            }
+            match store(&c, &m, &address) {
                 Ok(r) => {
                     s.new_messages += r.new as i64;
                     s.alerts += r.alert as i64;
@@ -818,9 +825,11 @@ pub async fn sync(db_path: &Path, trigger: &str) -> AppResult<SyncSummary> {
                 Err(e) => db::log(&c, "warn", "email", &format!("Skipped one email: {e}")),
             }
         }
+        let more_waiting = s.more_waiting;
         if !more_waiting {
             db::set_setting(&c, "gmail_last_sync", &db::now())?;
         }
+        db::set_setting(&c, "gmail_more_waiting", if more_waiting { "1" } else { "" })?;
         db::set_setting(&c, "gmail_last_error", "")?;
         db::log(
             &c,
@@ -829,7 +838,7 @@ pub async fn sync(db_path: &Path, trigger: &str) -> AppResult<SyncSummary> {
             &format!(
                 "Email check ({trigger}): {} new of {} checked, {} alerts, {} jobs added, {} linked to applications, {} suggestions{}",
                 s.new_messages, s.checked, s.alerts, s.jobs_added, s.linked, s.suggestions,
-                if more_waiting { "; more waiting, the next check continues" } else { "" }
+                if s.rate_limited { "; Gmail asked to slow down, continuing in a few minutes" } else if more_waiting { "; more waiting, continuing in a few minutes" } else { "" }
             ),
         );
         Ok::<_, AppError>(s)
@@ -849,7 +858,8 @@ pub fn due(c: &Connection, now: NaiveDateTime) -> bool {
     }
     let last = |k: &str| NaiveDateTime::parse_from_str(&setting(c, k), "%Y-%m-%d %H:%M:%S").ok();
     let newest = last("gmail_last_sync").into_iter().chain(last("gmail_last_attempt")).max();
-    newest.map(|t| (now - t).num_minutes() >= mins).unwrap_or(true)
+    let wait = if setting(c, "gmail_more_waiting") == "1" { CATCH_UP_MINUTES.min(mins) } else { mins };
+    newest.map(|t| (now - t).num_minutes() >= wait).unwrap_or(true)
 }
 
 #[cfg(test)]
@@ -1087,6 +1097,9 @@ mod tests {
         assert!(due(&c, now));
         db::set_setting(&c, "gmail_last_attempt", "2026-11-05 11:50:00").unwrap();
         assert!(!due(&c, now), "a recent failed attempt waits for the interval");
+        db::set_setting(&c, "gmail_more_waiting", "1").unwrap();
+        assert!(due(&c, now), "a backlog is picked up again after a few minutes");
+        db::set_setting(&c, "gmail_more_waiting", "").unwrap();
         set_interval(&c, 0).unwrap();
         db::set_setting(&c, "gmail_last_attempt", "").unwrap();
         assert!(!due(&c, now), "turned off");

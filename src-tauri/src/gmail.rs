@@ -225,23 +225,68 @@ pub async fn disconnect() -> AppResult<()> {
     secrets::delete(REFRESH)
 }
 
+/// Gap between Gmail requests. Google caps each user's requests per minute (reading one message
+/// costs 5 quota units); four a second stays well inside it.
+const MIN_GAP: Duration = Duration::from_millis(250);
+static LAST_CALL: std::sync::Mutex<Option<Instant>> = std::sync::Mutex::new(None);
+
+/// Starts every rate-limit error, so a sync can stop politely and keep what it already saved.
+pub const RATE_LIMITED: &str = "Gmail asked the app to slow down";
+
+pub fn is_rate_limited(e: &AppError) -> bool {
+    e.to_string().starts_with(RATE_LIMITED)
+}
+
+fn rate_limit_reply(status: u16, msg: &str) -> bool {
+    let m = msg.to_lowercase();
+    status == 429 || (status == 403 && (m.contains("quota") || m.contains("rate limit") || m.contains("ratelimit")))
+}
+
+async fn pace() {
+    let wait = {
+        let mut last = LAST_CALL.lock().unwrap_or_else(|p| p.into_inner());
+        let now = Instant::now();
+        let next = last.map(|t| t + MIN_GAP).filter(|t| *t > now);
+        *last = Some(next.unwrap_or(now));
+        next.map(|t| t - now)
+    };
+    if let Some(w) = wait {
+        tokio::time::sleep(w).await;
+    }
+}
+
 async fn get(token: &str, url: &str) -> AppResult<Value> {
-    let resp = client()
-        .get(url)
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| AppError::other(format!("Could not reach Gmail: {e}")))?;
-    let status = resp.status();
-    let v: Value = resp.json().await.unwrap_or(Value::Null);
-    if !status.is_success() {
+    // If Google says "too fast", wait and try again: 20 s, then 45 s (its window is a minute).
+    for (attempt, backoff) in [20u64, 45, 0].into_iter().enumerate() {
+        pace().await;
+        let resp = client()
+            .get(url)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|e| AppError::other(format!("Could not reach Gmail: {e}")))?;
+        let status = resp.status();
+        let v: Value = resp.json().await.unwrap_or(Value::Null);
+        if status.is_success() {
+            return Ok(v);
+        }
         let msg = v["error"]["message"].as_str().unwrap_or("");
         if status.as_u16() == 403 && msg.to_lowercase().contains("has not been used") {
             return Err(AppError::invalid("The Gmail API is not turned on in your Google Cloud project. Enable it (see Gmail setup) and try again."));
         }
+        if rate_limit_reply(status.as_u16(), msg) {
+            if backoff > 0 {
+                tokio::time::sleep(Duration::from_secs(backoff)).await;
+                continue;
+            }
+            return Err(AppError::other(format!(
+                "{RATE_LIMITED} (Google's per-minute limit, tried {} times). What was read so far is saved; the next check continues.",
+                attempt + 1
+            )));
+        }
         return Err(AppError::other(format!("Gmail refused the request ({status}): {msg}")));
     }
-    Ok(v)
+    unreachable!()
 }
 
 pub async fn profile_address(token: &str) -> AppResult<String> {
@@ -404,5 +449,15 @@ mod tests {
     fn decodes_padded_and_unpadded_base64url() {
         assert_eq!(decode_b64url("aGk=").unwrap(), b"hi");
         assert_eq!(decode_b64url("aGk").unwrap(), b"hi");
+    }
+
+    #[test]
+    fn recognises_googles_slow_down_replies() {
+        assert!(rate_limit_reply(429, ""));
+        assert!(rate_limit_reply(403, "Quota exceeded for quota metric 'Total Query Cost' and limit 'Units per minute per user'"));
+        assert!(rate_limit_reply(403, "User-rate limit exceeded"));
+        assert!(!rate_limit_reply(403, "Gmail API has not been used in project 1 before"));
+        assert!(!rate_limit_reply(401, "Invalid credentials"));
+        assert!(is_rate_limited(&AppError::other(format!("{RATE_LIMITED} (x)"))));
     }
 }
